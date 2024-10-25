@@ -1,0 +1,20 @@
+# Custom Language File for Launcher Customizer
+
+[ejs.app]
+title = "MCSquad DEV"
+
+[ejs.landing]
+mediaGitHubURL = "https://github.com/wally720/mcsquaddev"
+mediaTwitterURL = "https://x.com/mcsquadof"
+mediaInstagramURL = "https://instagram.com/mcsquadof/"
+mediaYouTubeURL = "#"
+mediaDiscordURL = "http://discord.mcsquad.net"
+
+[ejs.settings]
+sourceGithubLink = "https://github.com/wally720/MCSquaddev"
+supportLink = "https://github.com/wally720/MCSquaddev/issues"
+
+[ejs.welcome]
+welcomeHeader = "Bienvenido a la MCSquad"
+welcomeDescription = "Estas usando una versión de desarrollo del Launcher de la MCSQuad."
+welcomeDescCTA = "Estas preparado para la aventura?."
