@@ -164,6 +164,25 @@ function updateSelectedServer(serv){
     ConfigManager.setSelectedServer(serv != null ? serv.rawServer.id : null)
     ConfigManager.save()
     server_selection_button.innerHTML = '&#8226; ' + (serv != null ? serv.rawServer.name : Lang.queryJS('landing.noSelection'))
+    // ←– Aquí va la actualización de la miniatura
+    const thumb = document.getElementById('server_thumbnail');
+    if (serv && serv.rawServer.icon) {
+      // La URL del icono viene en `.icon`
+    thumb.src = serv.rawServer.icon;
+    } else if (serv && serv.rawServer.iconUrl) {
+      // (opcional) fallback si alguna versión futura usa iconUrl
+    thumb.src = serv.rawServer.iconUrl;
+    } else {
+      // Imagen por defecto
+    thumb.src = './assets/images/SealCircle.png';
+    }
+    // 2) ahora asignas ese mismo icono como fondo del botón JUGAR
+    const launchBtn = document.getElementById('launch_button');
+    if (serv && serv.rawServer.icon) {
+    launchBtn.style.backgroundImage = `url('${serv.rawServer.icon}')`;
+    } else {
+    launchBtn.style.backgroundImage = 'none';
+    }
     if(getCurrentView() === VIEWS.settings){
         animateSettingsTabRefresh()
     }

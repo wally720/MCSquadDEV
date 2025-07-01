@@ -99,52 +99,62 @@
                         <span class="bot_label" id="landingPlayerLabel"><%- lang('landing.serverStatus') %></span>
                         <span id="player_count"><%- lang('landing.serverStatusPlaceholder') %></span>
                     </div>
-                    <div class="bot_divider"></div>
-                    <div id="mojangStatusWrapper">
-                        <span class="small-text"><%- lang('landing.mojangStatus') %></span>
-                        <span id="mojang_status_icon">&#8226;</span>
-                        <div id="mojangStatusTooltip">
-                            <div id="mojangStatusTooltipTitle"><%- lang('landing.mojangStatusTooltipTitle') %></div>
-                            <div id="mojangStatusEssentialContainer">
-                                <!-- Essential Mojang services are populated here. -->
-                            </div>
-                            <div id="mojangStatusNEContainer">
-                                <div class="mojangStatusNEBar"></div>
-                                <div id="mojangStatusNETitle"><%- lang('landing.mojangStatusNETitle') %></div>
-                                <div class="mojangStatusNEBar"></div>
-                            </div>
-                            <div id="mojangStatusNonEssentialContainer">
-                                <!-- Non Essential Mojang services are populated here. -->
-                            </div>
+                </div>
+            </div>
+        </div>
+        <!-- centro eliminado por completo: esto rompe el layout -->
+        <div id="center">
+        <!-- placeholder para mantener el espacio central -->
+            <div id="content" class="bot_wrapper">
+                <div id="mojangStatusWrapper">
+                    <span class="small-text"><%- lang('landing.mojangStatus') %></span>
+                    <span id="mojang_status_icon">&#8226;</span>
+                    <div id="mojangStatusTooltip">
+                        <div id="mojangStatusTooltipTitle"><%- lang('landing.mojangStatusTooltipTitle') %></div>
+                        <div id="mojangStatusEssentialContainer">
+                            <!-- Essential Mojang services are populated here. -->
+                        </div>
+                        <div id="mojangStatusNEContainer">
+                            <div class="mojangStatusNEBar"></div>
+                            <div id="mojangStatusNETitle"><%- lang('landing.mojangStatusNETitle') %></div>
+                            <div class="mojangStatusNEBar"></div>
+                        </div>
+                        <div id="mojangStatusNonEssentialContainer">
+                            <!-- Non Essential Mojang services are populated here. -->
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div id="center">
-            <div class="bot_wrapper">
-                <div id="content">
-                    <button id="newsButton">
-                        <!--<img src="assets/images/icons/arrow.svg" id="newsButtonSVG"/>-->
-                        <div id="newsButtonAlert" style="display: none;"></div>
-                        <svg id="newsButtonSVG" viewBox="0 0 24.87 13.97">
-                            <defs>
-                                <style>.arrowLine{fill:none;stroke:#FFF;stroke-width:2px;}</style>
-                            </defs>
-                            <polyline class="arrowLine" points="0.71 13.26 12.56 1.41 24.16 13.02"/>
-                        </svg>
-                        &#10;<span id="newsButtonText"><%- lang('landing.newsButton') %></span>
-                    </button>
-                </div>
-            </div>
-        </div>
         <div id="right">
             <div class="bot_wrapper">
-                <div id="launch_content">
+                <!-- <div id="launch_content">
                     <button id="launch_button"><%- lang('landing.launchButton') %></button>
                     <div class="bot_divider"></div>
                     <button id="server_selection_button" class="bot_label"><%- lang('landing.launchButtonPlaceholder') %></button>
+                </div> -->
+                <div id="launch_content">
+                <!-- 1) Botón JUGAR -->
+                <button id="launch_button">
+                    <%- lang('landing.launchButton') %>
+                </button>
+
+                <!-- 2) (Opcional) divider, si lo ocultaste por CSS puedes borrarlo -->
+                <div class="bot_divider"></div>
+
+                <!-- 3) Contenedor de miniatura + “Seleccionar Servidor” -->
+                <div id="server_select_container">
+                    <img
+                    id="server_thumbnail"
+                    src="./assets/images/SealCircle.png"
+                    alt="Miniatura servidor"
+                    />
+                    <button id="server_selection_button" class="bot_label">
+                    <%- lang('landing.launchButtonPlaceholder') %>
+                    </button>
                 </div>
+                </div>
+
                 <div id="launch_details">
                     <div id="launch_details_left">
                         <span id="launch_progress_label">0%</span>
