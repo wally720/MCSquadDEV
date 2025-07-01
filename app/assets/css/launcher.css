@@ -2478,6 +2478,7 @@ input:checked + .toggleSwitchSlider:before {
 
 /* Lower content container. */
 #landingContainer > #lower {
+    position: relative;
     height: 23%;
     display: flex;
     background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
@@ -3436,11 +3437,13 @@ input:checked + .toggleSwitchSlider:before {
 
 /* Launch details main container, hidden until launch processing begins. */
 #launch_details {
-    position: relative;
-    top: 25px;
-    display: none;
+  position: absolute;       /* lo ponemos absoluto */
+  bottom: 50px;             /* separación inferior */
+  right: -90px;              /* separación derecha */
+  display: none;            /* oculto hasta iniciar */
+  align-items: center;      /* centra verticalmente su contenido */
 }
- 
+
 /* Left side of launch details container, displays percentage and a divider. */
 #launch_details_left {
     display: flex;
@@ -4090,5 +4093,35 @@ display: none;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50%      { transform: translate(-50%, -50%) scale(1.05); }
+}
+
+
+@keyframes wobble {
+  0%   { transform: translate(-50%,-50%) rotate(0deg); }
+  15%  { transform: translate(-50%,-50%) rotate(-5deg); }
+  30%  { transform: translate(-50%,-50%) rotate(5deg); }
+  45%  { transform: translate(-50%,-50%) rotate(-3deg); }
+  60%  { transform: translate(-50%,-50%) rotate(3deg); }
+  75%  { transform: translate(-50%,-50%) rotate(-2deg); }
+  100% { transform: translate(-50%,-50%) rotate(0deg); }
+}
+
+#launch_button:hover {
+  animation: wobble 0.8s ease-in-out both;
+}
+
+
+@keyframes neon {
+  0%, 100% { box-shadow: 0 0 4px #fff, 0 0 8px #fff; }
+  50%       { box-shadow: 0 0 12px #0ff, 0 0 24px #0ff; }
+}
+
+#launch_button {
+  animation: neon 3s ease-in-out infinite;
 }
 
