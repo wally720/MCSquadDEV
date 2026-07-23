@@ -9,6 +9,11 @@ compression: 'maximum'
 
 files:
   - '!{dist,.gitignore,.vscode,docs,dev-app-update.yml,.nvmrc,eslint.config.mjs}'
+  - '!.codegraph/**/*'
+  - '!.atl/**/*'
+  - '!test/**/*'
+  - '!excluir'
+  - '!**/*.map'
 
 extraResources:
   - 'libraries'
