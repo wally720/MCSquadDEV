@@ -1,4 +1,94 @@
 <div id="landingContainer" style="display: none;">
+    <section class="squad-arcade" data-squad-arcade data-theme="overworld" aria-label="Inicio de MCSquad Arcade" hidden>
+        <header class="sa-marquee">
+            <div class="sa-brand" aria-label="MCSquad Arcade">
+                <img src="assets/images/SealCircle.png" alt="">
+                <span>MC<strong>SQUAD</strong></span>
+                <small>ARCADE</small>
+            </div>
+            <nav aria-label="Navegación principal">
+                <button type="button" class="is-active" aria-current="page">INICIO</button>
+                <button type="button" data-sa-open="mods">MODS</button>
+                <button type="button" data-sa-open="settings">AJUSTES</button>
+            </nav>
+            <button class="sa-theme-trigger" type="button" data-sa-theme-trigger aria-haspopup="dialog">TEMA</button>
+        </header>
+
+        <div class="sa-stage">
+            <article class="sa-cartridge" aria-labelledby="sa-server-name">
+                <div class="sa-kicker"><span>PARTIDA SELECCIONADA</span><b data-sa-server-id>CARGANDO</b></div>
+                <div class="sa-server-label">
+                    <div class="sa-server-icon-stage">
+                        <img data-sa-server-icon src="assets/images/SealCircle.png" alt="">
+                    </div>
+                    <div class="sa-server-copy">
+                        <h1 id="sa-server-name" data-sa-server-name>Cargando servidor</h1>
+                        <p data-sa-server-description>Esperando la distribución del launcher.</p>
+                    </div>
+                </div>
+                <div class="sa-server-meta">
+                    <span>MC <b data-sa-minecraft-version>--</b></span>
+                    <span>PACK <b data-sa-pack-version>--</b></span>
+                    <span>ESTADO <b data-sa-status>COMPROBANDO</b></span>
+                    <span>JUGADORES <b data-sa-players>--</b></span>
+                </div>
+                <button class="sa-change-server" type="button" data-sa-select-server>CAMBIAR SERVIDOR <span aria-hidden="true">&#8596;</span></button>
+            </article>
+
+            <button class="sa-player" type="button" data-sa-open="account" aria-label="Administrar cuenta seleccionada">
+                <span class="sa-player-badge">P1</span>
+                <span class="sa-skin-fallback" aria-hidden="true">?</span>
+                <img data-sa-skin alt="Skin de la cuenta seleccionada">
+                <span class="sa-player-name"><small>CUENTA</small><strong data-sa-account-name>Sin cuenta</strong></span>
+            </button>
+
+            <div class="sa-actions">
+                <button class="sa-play" type="button" data-sa-play disabled>
+                    <span class="sa-play-ready">
+                        <span class="sa-play-icon" aria-hidden="true"></span>
+                        <span class="sa-play-copy"><strong>JUGAR</strong><small data-sa-play-ready-detail>Esperando servidor</small></span>
+                    </span>
+                    <span class="sa-launch-console">
+                        <span class="sa-launch-copy"><small>DESCARGANDO ARCHIVOS</small><strong data-sa-play-detail>Preparando partida</strong></span>
+                        <strong class="sa-launch-percent" data-sa-progress-label>0%</strong>
+                        <span class="sa-progress-track" data-sa-progress-track role="progressbar" aria-label="Progreso de descarga" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <i data-sa-progress></i><i class="sa-progress-scan" aria-hidden="true"></i>
+                        </span>
+                    </span>
+                    <span class="sa-play-energy" aria-hidden="true"></span>
+                    <span class="sa-play-sheen" aria-hidden="true"></span>
+                    <span class="sa-play-shockwave" aria-hidden="true"></span>
+                </button>
+                <button class="sa-tile sa-tile-mods" type="button" data-sa-open="mods"><span aria-hidden="true">+</span><strong>MODS</strong><small>ARMÁ TU PARTIDA</small></button>
+                <button class="sa-tile sa-tile-settings" type="button" data-sa-open="settings"><span aria-hidden="true">&#9670;</span><strong>AJUSTES</strong><small>CONFIGURÁ EL JUEGO</small></button>
+            </div>
+        </div>
+
+        <footer class="sa-footer">
+            <span>SQUAD NETWORK</span>
+            <a href="<%- lang('landing.mediaGitHubURL') %>" aria-label="GitHub"><img src="assets/images/icons/link.svg" alt=""></a>
+            <a href="<%- lang('landing.mediaDiscordURL') %>" aria-label="Discord"><img src="assets/images/icons/discord.svg" alt=""></a>
+            <a href="<%- lang('landing.mediaInstagramURL') %>" aria-label="Instagram"><img src="assets/images/icons/instagram.svg" alt=""></a>
+            <a href="<%- lang('landing.mediaXURL') %>" aria-label="X"><img src="assets/images/icons/x.svg" alt=""></a>
+            <a href="<%- lang('landing.mediaYouTubeURL') %>" data-sa-youtube aria-label="YouTube"><img src="assets/images/icons/youtube.svg" alt=""></a>
+            <b>1UP</b>
+        </footer>
+
+        <dialog class="sa-theme-dialog" data-sa-theme-dialog aria-labelledby="sa-theme-title">
+            <div class="sa-theme-surface">
+                <header><div><small>COLOR DE CABINA</small><h2 id="sa-theme-title">ELEGÍ UN TEMA</h2></div><button type="button" data-sa-theme-close aria-label="Cerrar selector de tema">&times;</button></header>
+                <div class="sa-theme-options" role="radiogroup" aria-label="Temas de Squad Arcade">
+                    <button type="button" role="radio" data-sa-theme="overworld"><i aria-hidden="true"></i><span><strong>Overworld Daybreak</strong><small>Cielo, césped y sol</small></span></button>
+                    <button type="button" role="radio" data-sa-theme="creeper"><i aria-hidden="true"></i><span><strong>Creeper Circuit</strong><small>Verde explosivo y carbón</small></span></button>
+                    <button type="button" role="radio" data-sa-theme="nether"><i aria-hidden="true"></i><span><strong>Nether Forge</strong><small>Magma, lava y carbón</small></span></button>
+                    <button type="button" role="radio" data-sa-theme="ender"><i aria-hidden="true"></i><span><strong>Ender Rift</strong><small>Obsidiana y portal</small></span></button>
+                </div>
+                <footer><span>El tema no cambia tu fondo aleatorio.</span><button type="button" data-sa-theme-close>LISTO</button></footer>
+            </div>
+        </dialog>
+        <div class="sa-theme-pulse" aria-hidden="true"></div>
+        <div class="sa-live" data-sa-live role="status" aria-live="polite"></div>
+    </section>
     <div id="upper">
         <div id="left">
             <div id="image_seal_container">
@@ -227,4 +317,5 @@
         </div>
     </div>
     <script src="./assets/js/scripts/landing.js"></script>
+    <script src="./assets/js/scripts/squad-arcade.js"></script>
 </div>

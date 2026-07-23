@@ -5,6 +5,9 @@ const path = require('path')
 
 const logger = LoggerUtil.getLogger('ConfigManager')
 
+const LAUNCHER_THEMES = new Set(['overworld', 'creeper', 'nether', 'ender'])
+const DEFAULT_LAUNCHER_THEME = 'overworld'
+
 const sysRoot = process.env.APPDATA || (process.platform == 'darwin' ? process.env.HOME + '/Library/Application Support' : process.env.HOME)
 
 const dataPath = path.join(sysRoot, '.mcsquaddev')
@@ -86,7 +89,8 @@ const DEFAULT_CONFIG = {
         },
         launcher: {
             allowPrerelease: false,
-            dataDirectory: dataPath
+            dataDirectory: dataPath,
+            theme: DEFAULT_LAUNCHER_THEME
         }
     },
     newsCache: {
@@ -148,6 +152,7 @@ exports.load = function(){
         }
         if(doValidate){
             config = validateKeySet(DEFAULT_CONFIG, config)
+            config.settings.launcher.theme = sanitizeLauncherTheme(config.settings.launcher.theme)
             exports.save()
         }
     }
@@ -183,6 +188,10 @@ function validateKeySet(srcObj, destObj){
         }
     }
     return destObj
+}
+
+function sanitizeLauncherTheme(theme){
+    return LAUNCHER_THEMES.has(theme) ? theme : DEFAULT_LAUNCHER_THEME
 }
 
 /**
@@ -772,6 +781,29 @@ exports.setLaunchDetached = function(launchDetached){
 }
 
 // Launcher Settings
+
+/**
+ * Retrieve the active launcher theme.
+ *
+ * @returns {string} A supported launcher theme ID.
+ */
+exports.getLauncherTheme = function(){
+    const theme = sanitizeLauncherTheme(config.settings.launcher.theme)
+    config.settings.launcher.theme = theme
+    return theme
+}
+
+/**
+ * Set the active launcher theme.
+ *
+ * @param {string} theme A launcher theme ID.
+ * @returns {string} The sanitized launcher theme ID.
+ */
+exports.setLauncherTheme = function(theme){
+    const sanitizedTheme = sanitizeLauncherTheme(theme)
+    config.settings.launcher.theme = sanitizedTheme
+    return sanitizedTheme
+}
 
 /**
  * Check if the launcher should download prerelease versions.

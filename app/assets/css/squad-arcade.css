@@ -1,0 +1,1128 @@
+.squad-arcade {
+    --sa-bg: #102643;
+    --sa-surface: #fff6d8;
+    --sa-panel: #173e68;
+    --sa-primary: #36c9ff;
+    --sa-secondary: #7cdd43;
+    --sa-accent: #ffd447;
+    --sa-detail: #e8693f;
+    --sa-ink: #102744;
+    --sa-light: #f8fdff;
+    --sa-download-bg: #061522;
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    color: var(--sa-light);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--sa-bg) 32%, transparent), color-mix(in srgb, var(--sa-bg) 8%, transparent));
+    font-family: 'Avenir Medium', sans-serif;
+    isolation: isolate;
+}
+
+#landingContainer.is-squad-arcade-ready > #upper,
+#landingContainer.is-squad-arcade-ready > #lower,
+#landingContainer.is-squad-arcade-ready > #newsContainer {
+    display: none !important;
+}
+
+.squad-arcade[data-theme='creeper'] {
+    --sa-bg: #08150d;
+    --sa-surface: #e9f0dc;
+    --sa-panel: #12311d;
+    --sa-primary: #43e65d;
+    --sa-secondary: #a7f22d;
+    --sa-accent: #63c54b;
+    --sa-detail: #1d7c3d;
+    --sa-ink: #07140c;
+    --sa-light: #f5ffe9;
+    --sa-download-bg: #030b06;
+}
+
+.squad-arcade[data-theme='nether'] {
+    --sa-bg: #170907;
+    --sa-surface: #f3dfc6;
+    --sa-panel: #3c1010;
+    --sa-primary: #ff4b24;
+    --sa-secondary: #ffad21;
+    --sa-accent: #d5301f;
+    --sa-detail: #7e1f32;
+    --sa-ink: #230806;
+    --sa-light: #fff2df;
+    --sa-download-bg: #160403;
+}
+
+.squad-arcade[data-theme='ender'] {
+    --sa-bg: #10091c;
+    --sa-surface: #eee5f7;
+    --sa-panel: #2d1548;
+    --sa-primary: #b85cff;
+    --sa-secondary: #6effad;
+    --sa-accent: #d6b4ff;
+    --sa-detail: #d742a4;
+    --sa-ink: #180a28;
+    --sa-light: #fff4ff;
+    --sa-download-bg: #0b0614;
+}
+
+.squad-arcade::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: linear-gradient(#ffffff08 2px, transparent 2px), linear-gradient(90deg, #ffffff08 2px, transparent 2px);
+    background-size: 18px 18px;
+}
+
+.squad-arcade .sa-theme-pulse {
+    position: absolute;
+    z-index: 4;
+    inset: -28%;
+    opacity: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--sa-primary) 52%, transparent) 0 12%, color-mix(in srgb, var(--sa-secondary) 28%, transparent) 30%, transparent 66%);
+    pointer-events: none;
+}
+
+.squad-arcade button,
+.squad-arcade a {
+    font: inherit;
+    transition: transform .12s ease, box-shadow .12s ease, filter .12s ease, background-color .12s ease;
+}
+
+.squad-arcade button {
+    cursor: pointer;
+}
+
+.squad-arcade button:disabled,
+.squad-arcade a[aria-disabled='true'] {
+    cursor: not-allowed;
+    filter: grayscale(.65);
+    opacity: .58;
+}
+
+.squad-arcade button:focus-visible,
+.squad-arcade a:focus-visible {
+    outline: 3px solid var(--sa-light);
+    outline-offset: 3px;
+}
+
+.squad-arcade .sa-marquee {
+    position: relative;
+    z-index: 5;
+    height: 64px;
+    display: grid;
+    grid-template-columns: minmax(190px, 245px) 1fr 82px;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 5px solid var(--sa-ink);
+    color: var(--sa-ink);
+    background: color-mix(in srgb, var(--sa-accent) 88%, transparent);
+    backdrop-filter: blur(8px);
+    clip-path: polygon(0 0, 100% 0, 100% 88%, 70% 88%, 68% 100%, 34% 100%, 32% 88%, 0 88%);
+}
+
+.squad-arcade .sa-brand {
+    display: flex;
+    align-items: center;
+    transform: rotate(-2deg);
+}
+
+.squad-arcade .sa-brand img {
+    width: 39px;
+    height: 39px;
+    margin-right: 8px;
+    border: 3px solid var(--sa-ink);
+}
+
+.squad-arcade .sa-brand span {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+.squad-arcade .sa-brand span strong {
+    color: var(--sa-primary);
+}
+
+.squad-arcade .sa-brand small {
+    margin-left: 7px;
+    padding: 4px 6px;
+    color: var(--sa-light);
+    background: var(--sa-detail);
+    font-size: 8px;
+    font-weight: 800;
+}
+
+.squad-arcade .sa-marquee nav {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+}
+
+.squad-arcade .sa-marquee nav button {
+    min-width: 88px;
+    border: 2px solid color-mix(in srgb, var(--sa-ink) 42%, transparent);
+    color: var(--sa-ink);
+    background: transparent;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .5px;
+    transform: skew(-7deg);
+    box-shadow: inset 0 -3px color-mix(in srgb, var(--sa-ink) 35%, transparent);
+}
+
+.squad-arcade .sa-marquee nav button:hover,
+.squad-arcade .sa-marquee nav button.is-active {
+    border-color: var(--sa-ink);
+    color: var(--sa-light);
+    background: var(--sa-panel);
+    box-shadow: inset 0 -5px var(--sa-primary);
+}
+
+.squad-arcade .sa-marquee nav button:active {
+    transform: skew(-7deg) translateY(3px);
+    box-shadow: inset 0 -2px var(--sa-primary);
+}
+
+.squad-arcade .sa-theme-trigger {
+    height: 31px;
+    border: 3px solid var(--sa-ink);
+    color: var(--sa-light);
+    background: var(--sa-panel);
+    box-shadow: 3px 3px var(--sa-ink);
+    font-size: 8px;
+    font-weight: 800;
+}
+
+.squad-arcade .sa-stage {
+    position: absolute;
+    inset: 60px 0 34px;
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) 190px;
+    grid-template-rows: minmax(0, 1fr) 84px;
+    gap: 11px;
+    padding: 17px 22px 14px;
+}
+
+.squad-arcade .sa-cartridge {
+    position: relative;
+    min-width: 0;
+    padding: 14px 16px 12px;
+    border: 4px solid var(--sa-ink);
+    color: var(--sa-ink);
+    background: color-mix(in srgb, var(--sa-surface) 84%, transparent);
+    box-shadow: 8px 8px var(--sa-ink), inset 0 -9px color-mix(in srgb, var(--sa-surface) 78%, var(--sa-ink));
+    backdrop-filter: blur(9px);
+    clip-path: polygon(0 0, 95% 0, 100% 12%, 100% 100%, 0 100%);
+}
+
+.squad-arcade .sa-cartridge::after {
+    content: '';
+    position: absolute;
+    right: 14px;
+    bottom: 10px;
+    width: 45px;
+    height: 7px;
+    background: repeating-linear-gradient(90deg, var(--sa-panel) 0 5px, transparent 5px 8px);
+    pointer-events: none;
+}
+
+.squad-arcade .sa-kicker {
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 6px;
+    border-bottom: 3px solid var(--sa-ink);
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.squad-arcade .sa-kicker b {
+    max-width: 48%;
+    overflow: hidden;
+    color: var(--sa-detail);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.squad-arcade .sa-server-label {
+    display: grid;
+    grid-template-columns: 122px minmax(0, 1fr);
+    gap: 17px;
+    align-items: center;
+    margin-top: 8px;
+    padding: 9px 14px 9px 10px;
+    border: 3px solid var(--sa-ink);
+    background: linear-gradient(135deg, var(--sa-primary), color-mix(in srgb, var(--sa-primary) 58%, var(--sa-light)) 55%, var(--sa-secondary));
+    box-shadow: inset 0 0 0 4px #ffffff70;
+}
+
+.squad-arcade .sa-server-icon-stage {
+    position: relative;
+    width: 116px;
+    height: 116px;
+    display: grid;
+    place-items: center;
+    transform-origin: center;
+}
+
+.squad-arcade .sa-server-icon-stage::before,
+.squad-arcade .sa-server-icon-stage::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+}
+
+.squad-arcade .sa-server-icon-stage::before {
+    inset: -2px;
+    border: 3px dashed color-mix(in srgb, var(--sa-ink) 55%, transparent);
+    transform: rotate(4deg);
+}
+
+.squad-arcade .sa-server-icon-stage::after {
+    right: -7px;
+    bottom: 3px;
+    width: 23px;
+    height: 23px;
+    border: 3px solid var(--sa-ink);
+    background: var(--sa-accent);
+    box-shadow: 4px 4px var(--sa-ink);
+}
+
+.squad-arcade .sa-server-label img {
+    position: relative;
+    z-index: 1;
+    width: 106px;
+    height: 106px;
+    border: 4px solid var(--sa-ink);
+    background: var(--sa-light);
+    object-fit: cover;
+    box-shadow: 5px 5px color-mix(in srgb, var(--sa-ink) 82%, transparent);
+}
+
+.squad-arcade .sa-server-copy {
+    min-width: 0;
+}
+
+.squad-arcade .sa-server-label h1 {
+    margin: 0;
+    overflow: hidden;
+    font-size: clamp(24px, 3.4vw, 34px);
+    line-height: .92;
+    letter-spacing: -1.5px;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.squad-arcade .sa-server-label p {
+    min-height: 30px;
+    margin: 7px 0 0;
+    overflow: hidden;
+    font-family: 'Avenir Book', sans-serif;
+    font-size: 9px;
+    line-height: 1.35;
+    font-weight: 700;
+}
+
+.squad-arcade .sa-server-meta {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+    margin-top: 9px;
+}
+
+.squad-arcade .sa-server-meta span {
+    min-width: 0;
+    min-height: 35px;
+    display: grid;
+    align-content: center;
+    padding: 4px 7px;
+    border: 2px solid var(--sa-ink);
+    font-size: 6px;
+    font-weight: 800;
+}
+
+.squad-arcade .sa-server-meta b {
+    overflow: hidden;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.squad-arcade .sa-change-server {
+    width: min(100%, 310px);
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 9px 4px 0 auto;
+    padding: 0 12px 0 15px;
+    border: 3px solid var(--sa-ink);
+    color: var(--sa-light);
+    background: var(--sa-panel);
+    box-shadow: 4px 4px var(--sa-ink), inset 0 -4px color-mix(in srgb, var(--sa-ink) 72%, transparent);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .6px;
+}
+
+.squad-arcade .sa-change-server span {
+    width: 22px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    margin-left: 12px;
+    border-left: 2px solid color-mix(in srgb, var(--sa-light) 55%, transparent);
+    font-size: 14px;
+}
+
+.squad-arcade .sa-player {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border: 4px solid var(--sa-ink);
+    color: var(--sa-light);
+    background: linear-gradient(145deg, color-mix(in srgb, var(--sa-detail) 86%, transparent), color-mix(in srgb, var(--sa-panel) 82%, transparent));
+    box-shadow: 7px 7px var(--sa-ink);
+    backdrop-filter: blur(8px);
+}
+
+.squad-arcade .sa-player::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border: 2px dashed #ffffff62;
+    pointer-events: none;
+}
+
+.squad-arcade .sa-player > img {
+    position: absolute;
+    z-index: 1;
+    inset: 19px 8px 36px;
+    width: calc(100% - 16px);
+    height: calc(100% - 55px);
+    object-fit: contain;
+    transform: scaleX(-1);
+    filter: drop-shadow(7px 9px #15102399);
+}
+
+.squad-arcade .sa-player-badge {
+    position: absolute;
+    z-index: 3;
+    top: 10px;
+    left: 8px;
+    padding: 4px 7px;
+    border: 2px solid var(--sa-ink);
+    color: var(--sa-ink);
+    background: var(--sa-secondary);
+    font-size: 11px;
+    font-weight: 800;
+    transform: rotate(-5deg);
+}
+
+.squad-arcade .sa-skin-fallback {
+    position: absolute;
+    inset: 34% 0 auto;
+    color: #ffffff55;
+    font-size: 70px;
+    font-weight: 800;
+}
+
+.squad-arcade .sa-player-name {
+    position: absolute;
+    z-index: 2;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    display: grid;
+    padding: 6px;
+    border: 2px solid var(--sa-ink);
+    color: var(--sa-ink);
+    background: var(--sa-accent);
+    text-align: center;
+}
+
+.squad-arcade .sa-player-name small {
+    font-size: 6px;
+    font-weight: 800;
+}
+
+.squad-arcade .sa-player-name strong {
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+}
+
+.squad-arcade .sa-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(250px, 1fr) 145px 155px;
+    gap: 9px;
+}
+
+.squad-arcade .sa-play {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 4px solid var(--sa-ink);
+    color: var(--sa-ink);
+    background: linear-gradient(165deg, color-mix(in srgb, var(--sa-secondary) 66%, var(--sa-light)) 0 18%, var(--sa-secondary) 19% 68%, color-mix(in srgb, var(--sa-secondary) 62%, var(--sa-ink)) 69% 100%);
+    box-shadow: 9px 10px var(--sa-ink), inset 0 0 0 3px color-mix(in srgb, var(--sa-light) 52%, transparent), inset 0 -10px color-mix(in srgb, var(--sa-secondary) 55%, var(--sa-ink));
+    transform-origin: center bottom;
+    transition: transform .16s cubic-bezier(.2, .9, .25, 1.35), box-shadow .16s ease, filter .16s ease;
+    isolation: isolate;
+}
+
+.squad-arcade .sa-tile:hover,
+.squad-arcade .sa-change-server:hover,
+.squad-arcade .sa-player:hover {
+    transform: translate(-2px, -2px);
+    filter: brightness(1.08);
+}
+
+.squad-arcade .sa-play:hover:not(:disabled) {
+    transform: translate(-5px, -6px) rotate(-.7deg) scale(1.025);
+    filter: brightness(1.16) saturate(1.18);
+    box-shadow: 14px 16px var(--sa-ink), 0 0 0 3px color-mix(in srgb, var(--sa-primary) 82%, transparent), 0 0 26px color-mix(in srgb, var(--sa-primary) 72%, transparent), inset 0 0 0 3px color-mix(in srgb, var(--sa-light) 64%, transparent), inset 0 -11px color-mix(in srgb, var(--sa-secondary) 50%, var(--sa-ink));
+}
+
+.squad-arcade .sa-play:hover:not(:disabled) .sa-play-icon {
+    transform: translateX(9px) rotate(-4deg) scale(1.22);
+}
+
+.squad-arcade .sa-play:hover:not(:disabled) .sa-play-copy {
+    transform: translateX(5px) scale(1.04);
+}
+
+.squad-arcade .sa-change-server:hover span {
+    transform: translateX(3px);
+}
+
+.squad-arcade .sa-tile:active,
+.squad-arcade .sa-change-server:active,
+.squad-arcade .sa-player:active {
+    transform: translate(4px, 4px);
+    box-shadow: 2px 2px var(--sa-ink);
+}
+
+.squad-arcade .sa-play:active:not(:disabled) {
+    transform: translate(7px, 8px) scale(.965);
+    box-shadow: 2px 2px var(--sa-ink), inset 0 5px 12px color-mix(in srgb, var(--sa-ink) 32%, transparent);
+}
+
+.squad-arcade .sa-play-ready {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    transition: opacity .16s ease, transform .16s ease;
+}
+
+.squad-arcade .sa-play-icon {
+    width: 0;
+    height: 0;
+    border-block: 12px solid transparent;
+    border-left: 20px solid currentColor;
+    filter: drop-shadow(3px 3px 0 color-mix(in srgb, var(--sa-light) 68%, transparent));
+    transition: transform .16s cubic-bezier(.2, .9, .2, 1.4);
+}
+
+.squad-arcade .sa-play-copy {
+    display: grid;
+    text-align: left;
+    transition: transform .16s cubic-bezier(.2, .9, .2, 1.4);
+}
+
+.squad-arcade .sa-play strong {
+    font-size: 21px;
+    line-height: 1;
+}
+
+.squad-arcade .sa-play small {
+    margin-top: 3px;
+    font-size: 7px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.squad-arcade .sa-play-energy,
+.squad-arcade .sa-play-shockwave {
+    position: absolute;
+    z-index: 1;
+    inset: 5px;
+    border: 3px solid color-mix(in srgb, var(--sa-primary) 86%, var(--sa-light));
+    opacity: 0;
+    pointer-events: none;
+}
+
+.squad-arcade .sa-play-shockwave {
+    z-index: 5;
+    inset: 10px;
+    border-width: 5px;
+}
+
+.squad-arcade .sa-play-sheen {
+    position: absolute;
+    z-index: 2;
+    top: -35%;
+    bottom: -35%;
+    left: -34%;
+    width: 25%;
+    background: linear-gradient(90deg, transparent, #ffffffd8, transparent);
+    opacity: .72;
+    transform: skewX(-18deg);
+    pointer-events: none;
+}
+
+.squad-arcade .sa-launch-console {
+    position: absolute;
+    z-index: 4;
+    inset: 5px 8px 6px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) 15px;
+    gap: 3px 12px;
+    align-items: center;
+    color: var(--sa-light);
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(.96);
+    transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
+}
+
+.squad-arcade .sa-launch-copy {
+    min-width: 0;
+    display: grid;
+    align-content: center;
+    text-align: left;
+}
+
+.squad-arcade .sa-launch-copy small {
+    margin: 0 0 2px;
+    color: var(--sa-primary);
+    font-size: 7px;
+    letter-spacing: 1.4px;
+}
+
+.squad-arcade .sa-launch-copy strong {
+    overflow: hidden;
+    font-size: 11px;
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.squad-arcade .sa-launch-percent {
+    min-width: 58px;
+    color: var(--sa-light);
+    font-size: 29px;
+    line-height: 1;
+    text-align: right;
+    text-shadow: 3px 3px 0 color-mix(in srgb, var(--sa-primary) 52%, var(--sa-download-bg));
+}
+
+.squad-arcade .sa-progress-track {
+    position: relative;
+    grid-column: 1 / -1;
+    height: 15px;
+    overflow: hidden;
+    border: 2px solid var(--sa-light);
+    background: color-mix(in srgb, var(--sa-download-bg) 72%, var(--sa-light));
+    box-shadow: inset 0 0 0 2px var(--sa-download-bg);
+}
+
+.squad-arcade .sa-progress-track [data-sa-progress] {
+    position: absolute;
+    inset: 2px auto 2px 2px;
+    width: 0;
+    background: repeating-linear-gradient(120deg, var(--sa-primary) 0 9px, var(--sa-accent) 9px 18px, var(--sa-secondary) 18px 27px);
+    box-shadow: 3px 0 10px color-mix(in srgb, var(--sa-primary) 82%, transparent);
+    transition: width .22s ease;
+    pointer-events: none;
+}
+
+.squad-arcade .sa-progress-scan {
+    position: absolute;
+    z-index: 2;
+    top: -4px;
+    bottom: -4px;
+    left: -18%;
+    width: 16%;
+    background: linear-gradient(90deg, transparent, #fff, transparent);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.squad-arcade[data-launching] .sa-play:disabled {
+    cursor: progress;
+    color: var(--sa-light);
+    background: linear-gradient(145deg, color-mix(in srgb, var(--sa-download-bg) 78%, var(--sa-panel)), var(--sa-download-bg));
+    border-color: var(--sa-light);
+    box-shadow: 9px 10px var(--sa-ink), 0 0 0 3px var(--sa-primary), 0 0 28px color-mix(in srgb, var(--sa-primary) 72%, transparent), inset 0 0 0 3px color-mix(in srgb, var(--sa-primary) 28%, transparent);
+    filter: none;
+    opacity: 1;
+}
+
+.squad-arcade[data-launching] .sa-play-ready {
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(.88);
+}
+
+.squad-arcade[data-launching] .sa-launch-console {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+    transition-delay: 0s;
+}
+
+.squad-arcade .sa-tile {
+    position: relative;
+    display: grid;
+    align-content: center;
+    padding: 8px 8px 8px 42px;
+    border: 4px solid var(--sa-ink);
+    color: var(--sa-ink);
+    text-align: left;
+    overflow: hidden;
+    box-shadow: 7px 8px var(--sa-ink), inset 0 -7px color-mix(in srgb, var(--sa-ink) 28%, transparent), inset 0 0 0 2px color-mix(in srgb, var(--sa-light) 46%, transparent);
+    transition: transform .15s cubic-bezier(.2, .9, .25, 1.3), box-shadow .15s ease, filter .15s ease;
+}
+
+.squad-arcade .sa-tile::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 4px;
+    background: color-mix(in srgb, var(--sa-light) 74%, transparent);
+    pointer-events: none;
+}
+
+.squad-arcade .sa-tile:hover {
+    transform: translate(-4px, -5px) rotate(-.5deg);
+    filter: brightness(1.16) saturate(1.12);
+    box-shadow: 11px 12px var(--sa-ink), 0 0 17px color-mix(in srgb, var(--sa-primary) 48%, transparent), inset 0 -7px color-mix(in srgb, var(--sa-ink) 24%, transparent), inset 0 0 0 2px color-mix(in srgb, var(--sa-light) 60%, transparent);
+}
+
+.squad-arcade .sa-tile:hover > span {
+    transform: translateY(-3px) rotate(-14deg) scale(1.28);
+    text-shadow: 3px 4px 0 color-mix(in srgb, var(--sa-light) 54%, transparent);
+}
+
+.squad-arcade .sa-tile > span,
+.squad-arcade .sa-change-server span {
+    transition: transform .14s ease;
+}
+
+.squad-arcade .sa-tile > span {
+    position: absolute;
+    left: 10px;
+    font-size: 25px;
+    font-weight: 800;
+    transition: transform .15s cubic-bezier(.2, .9, .2, 1.5), text-shadow .15s ease;
+}
+
+.squad-arcade .sa-tile strong {
+    font-size: 15px;
+}
+
+.squad-arcade .sa-tile small {
+    font-size: 6px;
+    font-weight: 800;
+}
+
+.squad-arcade .sa-tile-mods {
+    background: var(--sa-primary);
+}
+
+.squad-arcade .sa-tile-settings {
+    background: var(--sa-detail);
+}
+
+.squad-arcade .sa-footer {
+    position: absolute;
+    z-index: 5;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 18px;
+    border-top: 4px solid var(--sa-ink);
+    color: color-mix(in srgb, var(--sa-light) 62%, var(--sa-bg));
+    background: color-mix(in srgb, var(--sa-bg) 72%, transparent);
+    backdrop-filter: blur(8px);
+}
+
+.squad-arcade .sa-footer > span {
+    margin-right: auto;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+}
+
+.squad-arcade .sa-footer a {
+    width: 24px;
+    height: 21px;
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--sa-ink);
+    background: color-mix(in srgb, var(--sa-panel) 78%, transparent);
+    box-shadow: 2px 2px var(--sa-ink);
+}
+
+.squad-arcade .sa-footer a:hover:not([aria-disabled='true']) {
+    transform: translate(-1px, -1px);
+    filter: brightness(1.18);
+    box-shadow: 3px 3px var(--sa-ink);
+}
+
+.squad-arcade .sa-footer a:active:not([aria-disabled='true']) {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+}
+
+.squad-arcade .sa-footer img {
+    width: 13px;
+    height: 13px;
+    filter: brightness(0) invert(1);
+}
+
+.squad-arcade .sa-footer b {
+    margin-left: 8px;
+    color: var(--sa-secondary);
+    font-size: 11px;
+}
+
+.squad-arcade .sa-theme-dialog {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: var(--sa-ink);
+    background: transparent;
+}
+
+.squad-arcade .sa-theme-dialog::backdrop {
+    background: color-mix(in srgb, var(--sa-bg) 76%, transparent);
+    backdrop-filter: blur(5px);
+}
+
+.squad-arcade .sa-theme-surface {
+    position: absolute;
+    top: 72px;
+    right: 24px;
+    width: min(520px, calc(100% - 48px));
+    box-sizing: border-box;
+    padding: 17px 19px 15px;
+    border: 5px solid var(--sa-ink);
+    background: var(--sa-accent);
+    box-shadow: 11px 11px var(--sa-ink);
+}
+
+.squad-arcade .sa-theme-surface header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 3px solid var(--sa-ink);
+}
+
+.squad-arcade .sa-theme-surface header small,
+.squad-arcade .sa-theme-surface footer span {
+    font-size: 7px;
+    font-weight: 800;
+}
+
+.squad-arcade .sa-theme-surface h2 {
+    margin: 2px 0 9px;
+    font-size: 22px;
+}
+
+.squad-arcade .sa-theme-surface header button,
+.squad-arcade .sa-theme-surface footer button {
+    border: 3px solid var(--sa-ink);
+    color: var(--sa-light);
+    background: var(--sa-panel);
+    box-shadow: 4px 4px var(--sa-ink);
+    font-weight: 800;
+}
+
+.squad-arcade .sa-theme-surface header button {
+    width: 34px;
+    height: 34px;
+    font-size: 19px;
+}
+
+.squad-arcade .sa-theme-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-top: 11px;
+}
+
+.squad-arcade .sa-theme-options button {
+    min-height: 68px;
+    display: grid;
+    grid-template-columns: 58px 1fr;
+    align-items: center;
+    gap: 9px;
+    padding: 8px;
+    border: 3px solid var(--sa-ink);
+    color: var(--sa-ink);
+    background: var(--sa-surface);
+    box-shadow: 4px 4px var(--sa-ink);
+    text-align: left;
+}
+
+.squad-arcade .sa-theme-options button[aria-checked='true'] {
+    background: color-mix(in srgb, var(--sa-primary) 28%, var(--sa-surface));
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px var(--sa-ink);
+}
+
+.squad-arcade .sa-theme-trigger:hover,
+.squad-arcade .sa-theme-surface button:hover {
+    filter: brightness(1.12);
+    transform: translate(-1px, -1px);
+}
+
+.squad-arcade .sa-theme-trigger:active,
+.squad-arcade .sa-theme-surface button:active {
+    transform: translate(3px, 3px);
+    box-shadow: 1px 1px var(--sa-ink);
+}
+
+.squad-arcade .sa-theme-options i {
+    width: 54px;
+    height: 38px;
+    border: 2px solid var(--sa-ink);
+    background: linear-gradient(135deg, var(--sa-primary) 0 25%, var(--sa-secondary) 25% 50%, var(--sa-accent) 50% 75%, var(--sa-panel) 75%);
+}
+
+.squad-arcade [data-sa-theme='overworld'] {
+    --sa-primary: #36c9ff;
+    --sa-secondary: #7cdd43;
+    --sa-accent: #ffd447;
+    --sa-panel: #173e68;
+}
+
+.squad-arcade [data-sa-theme='creeper'] {
+    --sa-primary: #43e65d;
+    --sa-secondary: #a7f22d;
+    --sa-accent: #63c54b;
+    --sa-panel: #12311d;
+}
+
+.squad-arcade [data-sa-theme='nether'] {
+    --sa-primary: #ff4b24;
+    --sa-secondary: #ffad21;
+    --sa-accent: #d5301f;
+    --sa-panel: #3c1010;
+}
+
+.squad-arcade [data-sa-theme='ender'] {
+    --sa-primary: #b85cff;
+    --sa-secondary: #6effad;
+    --sa-accent: #d6b4ff;
+    --sa-panel: #2d1548;
+}
+
+.squad-arcade .sa-theme-options strong,
+.squad-arcade .sa-theme-options small {
+    display: block;
+}
+
+.squad-arcade .sa-theme-options strong {
+    font-size: 9px;
+}
+
+.squad-arcade .sa-theme-options small {
+    margin-top: 3px;
+    font-size: 6px;
+}
+
+.squad-arcade .sa-theme-surface footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 13px;
+}
+
+.squad-arcade .sa-theme-surface footer button {
+    height: 32px;
+    padding: 0 15px;
+    font-size: 8px;
+}
+
+.squad-arcade .sa-live {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+}
+
+@media (max-width: 760px), (max-height: 450px) {
+    .squad-arcade .sa-marquee {
+        height: 54px;
+        grid-template-columns: 175px 1fr 62px;
+        padding: 0 12px;
+    }
+
+    .squad-arcade .sa-brand img {
+        width: 31px;
+        height: 31px;
+    }
+
+    .squad-arcade .sa-brand span {
+        font-size: 16px;
+    }
+
+    .squad-arcade .sa-brand small {
+        display: none;
+    }
+
+    .squad-arcade .sa-marquee nav button {
+        min-width: 65px;
+        font-size: 8px;
+    }
+
+    .squad-arcade .sa-stage {
+        inset: 51px 0 30px;
+        grid-template-columns: minmax(300px, 1fr) 145px;
+        grid-template-rows: minmax(0, 1fr) 68px;
+        gap: 8px;
+        padding: 12px 15px 10px;
+    }
+
+    .squad-arcade .sa-cartridge {
+        padding: 10px 12px;
+    }
+
+    .squad-arcade .sa-server-label {
+        grid-template-columns: 82px minmax(0, 1fr);
+        margin-top: 6px;
+        padding: 7px;
+    }
+
+    .squad-arcade .sa-server-icon-stage {
+        width: 78px;
+        height: 78px;
+    }
+
+    .squad-arcade .sa-server-label img {
+        width: 70px;
+        height: 70px;
+    }
+
+    .squad-arcade .sa-server-label p {
+        min-height: 20px;
+        margin-top: 4px;
+        font-size: 7px;
+    }
+
+    .squad-arcade .sa-server-meta {
+        margin-top: 6px;
+    }
+
+    .squad-arcade .sa-server-meta span {
+        min-height: 28px;
+        padding: 3px 5px;
+    }
+
+    .squad-arcade .sa-change-server {
+        width: min(100%, 270px);
+        height: 30px;
+        margin-top: 5px;
+    }
+
+    .squad-arcade .sa-actions {
+        grid-template-columns: minmax(190px, 1fr) 110px 120px;
+        gap: 7px;
+    }
+
+    .squad-arcade .sa-play strong {
+        font-size: 17px;
+    }
+
+    .squad-arcade .sa-tile {
+        padding-left: 32px;
+    }
+
+    .squad-arcade .sa-tile > span {
+        left: 7px;
+        font-size: 20px;
+    }
+
+    .squad-arcade .sa-tile strong {
+        font-size: 12px;
+    }
+
+    .squad-arcade .sa-footer {
+        height: 30px;
+    }
+}
+
+@media (max-width: 570px) {
+    .squad-arcade .sa-marquee {
+        grid-template-columns: 140px 1fr 56px;
+    }
+
+    .squad-arcade .sa-brand span {
+        font-size: 13px;
+    }
+
+    .squad-arcade .sa-marquee nav button {
+        min-width: 48px;
+        padding: 0 4px;
+        font-size: 7px;
+    }
+
+    .squad-arcade .sa-stage {
+        grid-template-columns: 1fr 112px;
+        padding-inline: 10px;
+    }
+
+    .squad-arcade .sa-server-meta {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .squad-arcade .sa-server-meta span:nth-child(-n + 2) {
+        display: none;
+    }
+
+    .squad-arcade .sa-actions {
+        grid-template-columns: 1fr 82px 88px;
+    }
+
+    .squad-arcade .sa-tile {
+        padding: 5px;
+        text-align: center;
+    }
+
+    .squad-arcade .sa-tile > span,
+    .squad-arcade .sa-tile small {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .squad-arcade *,
+    .squad-arcade *::before,
+    .squad-arcade *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}

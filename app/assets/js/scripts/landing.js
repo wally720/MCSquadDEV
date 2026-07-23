@@ -57,6 +57,7 @@ function toggleLaunchArea(loading){
         launch_details.style.display = 'none'
         launch_content.style.display = 'inline-flex'
     }
+    window.squadArcade?.setLaunching(loading)
 }
 
 /**
@@ -66,6 +67,7 @@ function toggleLaunchArea(loading){
  */
 function setLaunchDetails(details){
     launch_details_text.innerHTML = details
+    window.squadArcade?.setLaunchDetails(details)
 }
 
 /**
@@ -77,6 +79,7 @@ function setLaunchPercentage(percent){
     launch_progress.setAttribute('max', 100)
     launch_progress.setAttribute('value', percent)
     launch_progress_label.innerHTML = percent + '%'
+    window.squadArcade?.setLaunchPercentage(percent)
 }
 
 /**
@@ -96,6 +99,7 @@ function setDownloadPercentage(percent){
  */
 function setLaunchEnabled(val){
     document.getElementById('launch_button').disabled = !val
+    window.squadArcade?.setEnabled(val)
 }
 
 // Bind launch button
@@ -153,6 +157,7 @@ function updateSelectedAccount(authUser){
         }
     }
     user_text.innerHTML = username
+    window.squadArcade?.updateAccount(authUser)
 }
 updateSelectedAccount(ConfigManager.getSelectedAccount())
 
@@ -165,28 +170,29 @@ function updateSelectedServer(serv){
     ConfigManager.save()
     server_selection_button.innerHTML = '&#8226; ' + (serv != null ? serv.rawServer.name : Lang.queryJS('landing.noSelection'))
     // ←– Aquí va la actualización de la miniatura
-    const thumb = document.getElementById('server_thumbnail');
+    const thumb = document.getElementById('server_thumbnail')
     if (serv && serv.rawServer.icon) {
-      // La URL del icono viene en `.icon`
-    thumb.src = serv.rawServer.icon;
+        // La URL del icono viene en `.icon`
+        thumb.src = serv.rawServer.icon
     } else if (serv && serv.rawServer.iconUrl) {
-      // (opcional) fallback si alguna versión futura usa iconUrl
-    thumb.src = serv.rawServer.iconUrl;
+        // (opcional) fallback si alguna versión futura usa iconUrl
+        thumb.src = serv.rawServer.iconUrl
     } else {
-      // Imagen por defecto
-    thumb.src = './assets/images/SealCircle.png';
+        // Imagen por defecto
+        thumb.src = './assets/images/SealCircle.png'
     }
     // 2) ahora asignas ese mismo icono como fondo del botón JUGAR
-    const launchBtn = document.getElementById('launch_button');
+    const launchBtn = document.getElementById('launch_button')
     if (serv && serv.rawServer.icon) {
-    launchBtn.style.backgroundImage = `url('${serv.rawServer.icon}')`;
+        launchBtn.style.backgroundImage = `url('${serv.rawServer.icon}')`
     } else {
-    launchBtn.style.backgroundImage = 'none';
+        launchBtn.style.backgroundImage = 'none'
     }
     if(getCurrentView() === VIEWS.settings){
         animateSettingsTabRefresh()
     }
     setLaunchEnabled(serv != null)
+    window.squadArcade?.updateServer(serv)
 }
 // Real text is set in uibinder.js on distributionIndexDone.
 server_selection_button.innerHTML = '&#8226; ' + Lang.queryJS('landing.selectedServer.loading')
@@ -260,6 +266,7 @@ const refreshServerStatus = async (fade = false) => {
 
     let pLabel = Lang.queryJS('landing.serverStatus.server')
     let pVal = Lang.queryJS('landing.serverStatus.offline')
+    let online = false
 
     try {
 
@@ -267,6 +274,7 @@ const refreshServerStatus = async (fade = false) => {
         console.log(servStat)
         pLabel = Lang.queryJS('landing.serverStatus.players')
         pVal = servStat.players.online + '/' + servStat.players.max
+        online = true
 
     } catch (err) {
         loggerLanding.warn('No se puede actualizar el estado del servidor, asumiendo que está desconectado.')
@@ -282,6 +290,7 @@ const refreshServerStatus = async (fade = false) => {
         document.getElementById('landingPlayerLabel').innerHTML = pLabel
         document.getElementById('player_count').innerHTML = pVal
     }
+    window.squadArcade?.updateStatus(online, pVal)
     
 }
 
@@ -668,6 +677,8 @@ const newsArticleComments           = document.getElementById('newsArticleCommen
 const newsNavigationStatus          = document.getElementById('newsNavigationStatus')
 const newsArticleContentScrollable  = document.getElementById('newsArticleContentScrollable')
 const nELoadSpan                    = document.getElementById('nELoadSpan')
+const newsButton                    = document.getElementById('newsButton')
+const newsButtonAlert               = document.getElementById('newsButtonAlert')
 
 // News slide caches.
 let newsActive = false
@@ -722,8 +733,8 @@ function slide_(up){
     }
 }
 
-// Bind news button.
-document.getElementById('newsButton').onclick = () => {
+// Bind news button when the legacy control is present.
+if(newsButton != null) newsButton.onclick = () => {
     // Toggle tabbing.
     if(newsActive){
         $('#landingContainer *').removeAttr('tabindex')
@@ -814,7 +825,9 @@ let newsAlertShown = false
  */
 function showNewsAlert(){
     newsAlertShown = true
-    $(newsButtonAlert).fadeIn(250)
+    if(newsButtonAlert != null){
+        $(newsButtonAlert).fadeIn(250)
+    }
 }
 
 async function digestMessage(str) {
@@ -941,7 +954,7 @@ document.addEventListener('keydown', (e) => {
     } else {
         if(getCurrentView() === VIEWS.landing){
             if(e.key === 'ArrowUp'){
-                document.getElementById('newsButton').click()
+                newsButton?.click()
             }
         }
     }
