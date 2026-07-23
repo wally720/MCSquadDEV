@@ -90,7 +90,8 @@ const DEFAULT_CONFIG = {
         launcher: {
             allowPrerelease: false,
             dataDirectory: dataPath,
-            theme: DEFAULT_LAUNCHER_THEME
+            theme: DEFAULT_LAUNCHER_THEME,
+            showIntro: true
         }
     },
     newsCache: {
@@ -803,6 +804,24 @@ exports.setLauncherTheme = function(theme){
     const sanitizedTheme = sanitizeLauncherTheme(theme)
     config.settings.launcher.theme = sanitizedTheme
     return sanitizedTheme
+}
+
+/**
+ * Check if the cinematic intro should be shown on startup.
+ *
+ * @returns {boolean} Whether the intro should be shown.
+ */
+exports.getShowIntro = function(){
+    return config.settings.launcher.showIntro !== false
+}
+
+/**
+ * Set whether the cinematic intro should be shown on startup.
+ *
+ * @param {boolean} showIntro Whether the intro should be shown.
+ */
+exports.setShowIntro = function(showIntro){
+    config.settings.launcher.showIntro = Boolean(showIntro)
 }
 
 /**
