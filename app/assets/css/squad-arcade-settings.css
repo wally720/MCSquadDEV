@@ -1,0 +1,605 @@
+#settingsContainer.is-squad-settings-ready {
+    --sa-settings-accent: #59d8ff;
+    --sa-settings-accent-strong: #b7efff;
+    --sa-settings-accent-rgb: 89, 216, 255;
+    --sa-settings-alert: #ffc857;
+    --sa-settings-ink: #050a0f;
+    --sa-settings-panel: #0b151d;
+    --sa-settings-panel-soft: #101f29;
+    --sa-settings-line: rgba(151, 213, 229, 0.2);
+    --sa-settings-muted: #78909c;
+    --sa-settings-text: #e8f5f7;
+    isolation: isolate;
+    overflow: hidden;
+    background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0 0 / 34px 34px,
+        linear-gradient(0deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px) 0 0 / 34px 34px,
+        radial-gradient(circle at 82% 12%, rgba(var(--sa-settings-accent-rgb), 0.11), transparent 34%),
+        linear-gradient(135deg, rgba(6, 16, 24, 0.72), rgba(6, 16, 24, 0.48));
+    color: var(--sa-settings-text);
+    font-family: 'Avenir Book', sans-serif;
+}
+
+#settingsContainer.is-squad-settings-ready[data-theme='overworld'] {
+    --sa-settings-accent: #59d8ff;
+    --sa-settings-accent-strong: #b7efff;
+    --sa-settings-accent-rgb: 89, 216, 255;
+    --sa-settings-alert: #ffc857;
+}
+
+#settingsContainer.is-squad-settings-ready[data-theme='creeper'] {
+    --sa-settings-accent: #88ed3f;
+    --sa-settings-accent-strong: #d7ffba;
+    --sa-settings-accent-rgb: 136, 237, 63;
+    --sa-settings-alert: #dfff4f;
+}
+
+#settingsContainer.is-squad-settings-ready[data-theme='nether'] {
+    --sa-settings-accent: #ff7043;
+    --sa-settings-accent-strong: #ffc0a8;
+    --sa-settings-accent-rgb: 255, 112, 67;
+    --sa-settings-alert: #ffca5c;
+}
+
+#settingsContainer.is-squad-settings-ready[data-theme='ender'] {
+    --sa-settings-accent: #c276ff;
+    --sa-settings-accent-strong: #edcdff;
+    --sa-settings-accent-rgb: 194, 118, 255;
+    --sa-settings-alert: #ff70d3;
+}
+
+#settingsContainer.is-squad-settings-ready::before {
+    z-index: 4;
+    left: 214px;
+    width: calc(100% - 214px);
+    height: 18px;
+    background: linear-gradient(rgba(2, 7, 11, 0.78), transparent);
+    pointer-events: none;
+}
+
+#settingsContainer.is-squad-settings-ready[scrolled]::before {
+    opacity: 1;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsContainerLeft {
+    position: relative;
+    flex: 0 0 214px;
+    width: 214px;
+    height: 100%;
+    padding: 0;
+    background:
+        linear-gradient(180deg, rgba(var(--sa-settings-accent-rgb), 0.08), transparent 26%),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025), transparent),
+        rgba(5, 10, 15, 0.84);
+    border-right: 1px solid var(--sa-settings-line);
+    box-shadow: 14px 0 34px rgba(0, 0, 0, 0.3);
+    box-sizing: border-box;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsContainerLeft::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: -1px;
+    width: 1px;
+    height: 92px;
+    background: var(--sa-settings-accent);
+    box-shadow: 0 0 16px rgba(var(--sa-settings-accent-rgb), 0.75);
+    pointer-events: none;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavContainer {
+    height: 100%;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavHeader {
+    position: relative;
+    display: block;
+    flex: 0 0 114px;
+    height: 114px;
+    padding: 22px 22px 16px;
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--sa-settings-line);
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavHeader::before {
+    content: attr(data-sa-kicker);
+    display: block;
+    color: var(--sa-settings-accent);
+    font-family: 'Avenir Medium', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    line-height: 1;
+    pointer-events: none;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavHeader::after {
+    content: attr(data-sa-title);
+    display: block;
+    margin-top: 9px;
+    color: var(--sa-settings-text);
+    font-family: 'Avenir Medium', sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    pointer-events: none;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavHeaderText {
+    display: block;
+    margin-top: 8px;
+    color: var(--sa-settings-muted);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavItemsContainer {
+    display: block;
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavItemsContent {
+    width: 100%;
+    height: 100%;
+    padding: 14px 0 86px;
+    box-sizing: border-box;
+}
+
+#settingsContainer.is-squad-settings-ready .squadSettingsTabList {
+    min-height: 0;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavItem {
+    position: relative;
+    width: 100%;
+    min-height: 39px;
+    margin: 0;
+    padding: 0 18px 0 54px;
+    border: 0;
+    border-left: 3px solid transparent;
+    color: #78909c;
+    font-family: 'Avenir Medium', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    line-height: 39px;
+    text-transform: uppercase;
+    box-sizing: border-box;
+    text-shadow: none;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavItem::before {
+    content: attr(data-sa-index);
+    position: absolute;
+    left: 21px;
+    top: 0;
+    color: #43545e;
+    font-family: monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    line-height: 39px;
+    pointer-events: none;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavItem::after {
+    content: '';
+    position: absolute;
+    right: 17px;
+    top: 17px;
+    width: 5px;
+    height: 5px;
+    border: 1px solid currentColor;
+    transform: rotate(45deg);
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavItem:hover,
+#settingsContainer.is-squad-settings-ready .settingsNavItem:focus {
+    color: var(--sa-settings-accent-strong);
+    background: rgba(var(--sa-settings-accent-rgb), 0.055);
+    text-shadow: none;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavItem[selected] {
+    color: var(--sa-settings-text);
+    background: linear-gradient(90deg, rgba(var(--sa-settings-accent-rgb), 0.18), transparent 88%);
+    border-left-color: var(--sa-settings-accent);
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavItem[selected]::before {
+    color: var(--sa-settings-accent);
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavItem[selected]::after {
+    border-color: var(--sa-settings-accent);
+    background: var(--sa-settings-accent);
+    box-shadow: 0 0 9px rgba(var(--sa-settings-accent-rgb), 0.75);
+    opacity: 1;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavItem:focus-visible {
+    outline: 2px solid var(--sa-settings-accent);
+    outline-offset: -3px;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavSpacer {
+    height: 12px;
+    margin: 7px 20px 5px;
+    border-top: 1px solid var(--sa-settings-line);
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavContentBottom {
+    position: absolute;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 72px;
+    padding: 11px 16px;
+    background: linear-gradient(180deg, rgba(5, 10, 15, 0.68), #050a0f 34%);
+    border-top: 1px solid var(--sa-settings-line);
+    box-sizing: border-box;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsNavDivider {
+    display: none;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavDone {
+    position: relative;
+    width: 100%;
+    height: 48px;
+    margin: 0;
+    padding: 0 42px 0 17px;
+    border: 1px solid rgba(var(--sa-settings-accent-rgb), 0.55);
+    background: linear-gradient(90deg, rgba(var(--sa-settings-accent-rgb), 0.16), rgba(var(--sa-settings-accent-rgb), 0.04));
+    color: var(--sa-settings-accent-strong);
+    font-family: 'Avenir Medium', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    line-height: 48px;
+    text-transform: uppercase;
+    box-sizing: border-box;
+    text-shadow: none;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavDone::after {
+    content: '>>';
+    position: absolute;
+    right: 16px;
+    top: 0;
+    color: var(--sa-settings-accent);
+    font-size: 18px;
+    line-height: 45px;
+    pointer-events: none;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavDone:hover,
+#settingsContainer.is-squad-settings-ready #settingsNavDone:focus {
+    background: rgba(var(--sa-settings-accent-rgb), 0.22);
+    border-color: var(--sa-settings-accent);
+    text-shadow: none;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavDone:disabled {
+    opacity: 0.42;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsContainerRight {
+    position: relative;
+    flex: 1 1 auto;
+    width: calc(100% - 214px);
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.018), transparent 45%);
+}
+
+#settingsContainer.is-squad-settings-ready #settingsContainerRight::before {
+    content: 'CANAL TECNICO // CONFIGURACION';
+    position: absolute;
+    z-index: 3;
+    top: 14px;
+    right: 26px;
+    color: rgba(var(--sa-settings-accent-rgb), 0.5);
+    font-family: monospace;
+    font-size: 8px;
+    letter-spacing: 0.16em;
+    pointer-events: none;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTab {
+    width: 100%;
+    height: 100%;
+    padding: 0 38px 0 42px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-sizing: border-box;
+    scrollbar-color: rgba(var(--sa-settings-accent-rgb), 0.55) transparent;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTab::-webkit-scrollbar {
+    width: 5px;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTab::-webkit-scrollbar-thumb {
+    border-radius: 0;
+    background: rgba(var(--sa-settings-accent-rgb), 0.5);
+    box-shadow: none;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTab > *:first-child {
+    margin-top: 34px;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTab > *:last-child {
+    margin-bottom: 54px;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTabHeader {
+    position: relative;
+    min-height: 74px;
+    margin-bottom: 18px;
+    padding: 21px 22px 14px;
+    border: 1px solid var(--sa-settings-line);
+    border-left: 3px solid var(--sa-settings-accent);
+    background: linear-gradient(90deg, rgba(var(--sa-settings-accent-rgb), 0.1), rgba(9, 20, 28, 0.78) 58%, transparent);
+    box-sizing: border-box;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTabHeader::after {
+    content: 'NODO DE SERVICIO';
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    color: rgba(var(--sa-settings-accent-rgb), 0.48);
+    font-family: monospace;
+    font-size: 8px;
+    letter-spacing: 0.16em;
+    pointer-events: none;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTabHeaderText {
+    color: var(--sa-settings-text);
+    font-family: 'Avenir Medium', sans-serif;
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1.15;
+    text-transform: uppercase;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTabHeaderDesc {
+    max-width: 78%;
+    margin-top: 5px;
+    color: #8ca3ad;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsTab:focus-visible {
+    outline: 1px solid rgba(var(--sa-settings-accent-rgb), 0.7);
+    outline-offset: -5px;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsFieldContainer,
+#settingsContainer.is-squad-settings-ready .settingsFileSelContainer,
+#settingsContainer.is-squad-settings-ready .settingsAuthAccountTypeContainer,
+#settingsContainer.is-squad-settings-ready #settingsMemoryContainer,
+#settingsContainer.is-squad-settings-ready #settingsJVMOptsContainer,
+#settingsContainer.is-squad-settings-ready #settingsAboutCurrentContainer,
+#settingsContainer.is-squad-settings-ready #settingsUpdateStatusContainer,
+#settingsContainer.is-squad-settings-ready .settingsChangelogContainer {
+    border: 1px solid rgba(151, 213, 229, 0.14);
+    background: rgba(7, 15, 21, 0.72);
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+}
+
+#settingsContainer.is-squad-settings-ready .settingsFieldContainer:hover,
+#settingsContainer.is-squad-settings-ready .settingsFileSelContainer:hover,
+#settingsContainer.is-squad-settings-ready .settingsAuthAccountTypeContainer:hover {
+    border-color: rgba(var(--sa-settings-accent-rgb), 0.36);
+}
+
+#settingsContainer.is-squad-settings-ready .settingsFieldTitle,
+#settingsContainer.is-squad-settings-ready #settingsMemoryTitle,
+#settingsContainer.is-squad-settings-ready #settingsJVMOptsTitle,
+#settingsContainer.is-squad-settings-ready .settingsAuthAccountTypeHeader span {
+    color: var(--sa-settings-text);
+    font-family: 'Avenir Medium', sans-serif;
+    letter-spacing: 0.04em;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsFieldDesc,
+#settingsContainer.is-squad-settings-ready .settingsFileSelDesc,
+#settingsContainer.is-squad-settings-ready #settingsMemoryDesc,
+#settingsContainer.is-squad-settings-ready #settingsJVMOptsDesc {
+    color: #8299a3;
+}
+
+#settingsContainer.is-squad-settings-ready input[type='number'],
+#settingsContainer.is-squad-settings-ready input[type='text'] {
+    border-color: rgba(151, 213, 229, 0.24);
+    border-radius: 0;
+    background: rgba(2, 8, 12, 0.78);
+    color: var(--sa-settings-text);
+}
+
+#settingsContainer.is-squad-settings-ready input[type='number']:focus,
+#settingsContainer.is-squad-settings-ready input[type='text']:focus {
+    border-color: var(--sa-settings-accent);
+    box-shadow: 0 0 0 1px rgba(var(--sa-settings-accent-rgb), 0.22);
+}
+
+#settingsContainer.is-squad-settings-ready .toggleSwitchSlider {
+    border-color: rgba(151, 213, 229, 0.34);
+    background: #0a151c;
+}
+
+#settingsContainer.is-squad-settings-ready .toggleSwitch input {
+    position: absolute;
+    display: block;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    opacity: 0;
+}
+
+#settingsContainer.is-squad-settings-ready .toggleSwitch input:focus-visible + .toggleSwitchSlider {
+    outline: 2px solid var(--sa-settings-accent);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 3px rgba(var(--sa-settings-accent-rgb), 0.18);
+}
+
+#settingsContainer.is-squad-settings-ready .toggleSwitch input:checked + .toggleSwitchSlider {
+    border-color: var(--sa-settings-accent);
+    background: rgba(var(--sa-settings-accent-rgb), 0.3);
+}
+
+#settingsContainer.is-squad-settings-ready .settingsSelServContainer {
+    width: 100%;
+    min-height: 58px;
+    border: 1px solid rgba(var(--sa-settings-accent-rgb), 0.22);
+    border-radius: 0;
+    background: linear-gradient(90deg, rgba(var(--sa-settings-accent-rgb), 0.08), rgba(4, 11, 16, 0.72));
+    box-sizing: border-box;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsSwitchServerButton {
+    border-color: var(--sa-settings-accent);
+    border-radius: 0;
+    color: var(--sa-settings-accent-strong);
+}
+
+#settingsContainer.is-squad-settings-ready #settingsTabMods.sa-module-bay #settingsModsContainer {
+    padding: 16px;
+    border: 1px solid rgba(174, 189, 196, 0.16);
+    background: rgba(8, 13, 17, 0.82);
+    box-sizing: border-box;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsTabMods.sa-module-bay #settingsModsContainer > div {
+    border-color: rgba(174, 189, 196, 0.16);
+    background: rgba(255, 255, 255, 0.018);
+}
+
+#settingsContainer.is-squad-settings-ready #settingsTabMods.sa-module-bay .settingsModsHeader {
+    color: #c0cbd0;
+    font-family: 'Avenir Medium', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsDropinFileSystemButton,
+#settingsContainer.is-squad-settings-ready #settingsShaderpackButton {
+    border-color: rgba(174, 189, 196, 0.34);
+    border-radius: 0;
+    background: #0b1217;
+    color: #d4dde0;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsSelectContainer {
+    border-color: rgba(174, 189, 196, 0.24);
+    border-radius: 0;
+    background: #0b1217;
+}
+
+#settingsContainer.is-squad-settings-ready .settingsSelectOptions {
+    z-index: 5;
+    background: #0b1217;
+    border-color: rgba(174, 189, 196, 0.24);
+}
+
+#settingsContainer.is-squad-settings-ready a {
+    color: var(--sa-settings-accent-strong);
+}
+
+#settingsContainer.is-squad-settings-ready button,
+#settingsContainer.is-squad-settings-ready input,
+#settingsContainer.is-squad-settings-ready a {
+    position: relative;
+    z-index: 1;
+}
+
+#settingsContainer.is-squad-settings-ready .squadSettingsVisuallyHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+    #settingsContainer.is-squad-settings-ready::before {
+        left: 184px;
+        width: calc(100% - 184px);
+    }
+
+    #settingsContainer.is-squad-settings-ready #settingsContainerLeft {
+        flex-basis: 184px;
+        width: 184px;
+    }
+
+    #settingsContainer.is-squad-settings-ready #settingsContainerRight {
+        width: calc(100% - 184px);
+    }
+
+    #settingsContainer.is-squad-settings-ready .settingsNavItem {
+        padding-left: 47px;
+        font-size: 10px;
+    }
+
+    #settingsContainer.is-squad-settings-ready .settingsNavItem::before {
+        left: 17px;
+    }
+
+    #settingsContainer.is-squad-settings-ready .settingsTab {
+        padding-right: 24px;
+        padding-left: 28px;
+    }
+}
+
+@media (max-height: 600px) {
+    #settingsContainer.is-squad-settings-ready #settingsNavHeader {
+        flex-basis: 98px;
+        height: 98px;
+        padding-top: 16px;
+    }
+
+    #settingsContainer.is-squad-settings-ready #settingsNavItemsContent {
+        padding-top: 7px;
+    }
+
+    #settingsContainer.is-squad-settings-ready .settingsNavItem {
+        min-height: 34px;
+        line-height: 34px;
+    }
+
+    #settingsContainer.is-squad-settings-ready .settingsNavItem::before {
+        line-height: 34px;
+    }
+
+    #settingsContainer.is-squad-settings-ready .settingsNavItem::after {
+        top: 14px;
+    }
+
+    #settingsContainer.is-squad-settings-ready .settingsTab > *:first-child {
+        margin-top: 26px;
+    }
+}

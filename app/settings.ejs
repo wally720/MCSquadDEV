@@ -1,29 +1,31 @@
-<div id="settingsContainer" style="display: none;">
-    <div id="settingsContainerLeft">
+<div id="settingsContainer" data-squad-arcade-settings style="display: none;">
+    <div id="settingsContainerLeft" class="squadSettingsRail">
         <div id="settingsNavContainer">
-            <div id="settingsNavHeader">
+            <div id="settingsNavHeader" data-sa-kicker="SQUAD ARCADE" data-sa-title="BAHÍA DE SERVICIO">
                 <span id="settingsNavHeaderText"><%- lang('settings.navHeaderText') %></span>
             </div>
             <div id="settingsNavItemsContainer">
                 <div id="settingsNavItemsContent">
-                    <button class="settingsNavItem" rSc="settingsTabAccount" id="settingsNavAccount" selected><%- lang('settings.navAccount') %></button>
-                    <button class="settingsNavItem" rSc="settingsTabMinecraft"><%- lang('settings.navMinecraft') %></button>
-                    <button class="settingsNavItem" rSc="settingsTabMods" id="settingsNavMods"><%- lang('settings.navMods') %></button>
-                    <button class="settingsNavItem" rSc="settingsTabJava"><%- lang('settings.navJava') %></button>
-                    <button class="settingsNavItem" rSc="settingsTabLauncher"><%- lang('settings.navLauncher') %></button>
-                    <div class="settingsNavSpacer"></div>
-                    <button class="settingsNavItem" rSc="settingsTabAbout"><%- lang('settings.navAbout') %></button>
-                    <button class="settingsNavItem" rSc="settingsTabUpdate" id="settingsNavUpdate"><%- lang('settings.navUpdates') %></button>
+                    <div class="squadSettingsTabList" role="tablist" aria-label="Secciones de ajustes" style="display: flex; flex-direction: column;">
+                        <button class="settingsNavItem" rSc="settingsTabAccount" id="settingsNavAccount" data-sa-index="01" role="tab" aria-controls="settingsTabAccount" aria-selected="true" tabindex="0" selected><%- lang('settings.navAccount') %></button>
+                        <button class="settingsNavItem" rSc="settingsTabMinecraft" id="settingsNavMinecraft" data-sa-index="02" role="tab" aria-controls="settingsTabMinecraft" aria-selected="false" tabindex="-1"><%- lang('settings.navMinecraft') %></button>
+                        <button class="settingsNavItem" rSc="settingsTabMods" id="settingsNavMods" data-sa-index="03" role="tab" aria-controls="settingsTabMods" aria-selected="false" tabindex="-1"><%- lang('settings.navMods') %></button>
+                        <button class="settingsNavItem" rSc="settingsTabJava" id="settingsNavJava" data-sa-index="04" role="tab" aria-controls="settingsTabJava" aria-selected="false" tabindex="-1"><%- lang('settings.navJava') %></button>
+                        <button class="settingsNavItem" rSc="settingsTabLauncher" id="settingsNavLauncher" data-sa-index="05" role="tab" aria-controls="settingsTabLauncher" aria-selected="false" tabindex="-1"><%- lang('settings.navLauncher') %></button>
+                        <div class="settingsNavSpacer" aria-hidden="true"></div>
+                        <button class="settingsNavItem" rSc="settingsTabAbout" id="settingsNavAbout" data-sa-index="06" role="tab" aria-controls="settingsTabAbout" aria-selected="false" tabindex="-1"><%- lang('settings.navAbout') %></button>
+                        <button class="settingsNavItem" rSc="settingsTabUpdate" id="settingsNavUpdate" data-sa-index="07" role="tab" aria-controls="settingsTabUpdate" aria-selected="false" tabindex="-1"><%- lang('settings.navUpdates') %></button>
+                    </div>
                     <div id="settingsNavContentBottom">
                         <div class="settingsNavDivider"></div>
-                        <button id="settingsNavDone"><%- lang('settings.navDone') %></button>
+                        <button id="settingsNavDone" type="button" aria-label="Guardar ajustes y volver al inicio"><%- lang('settings.navDone') %></button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <div id="settingsContainerRight">
-        <div id="settingsTabAccount" class="settingsTab">
+    <div id="settingsContainerRight" class="squadSettingsWorkspace">
+        <div id="settingsTabAccount" class="settingsTab" data-sa-bay="account" role="tabpanel" aria-labelledby="settingsNavAccount" aria-hidden="false" tabindex="0">
             <div class="settingsTabHeader">
                 <span class="settingsTabHeaderText"><%- lang('settings.tabAccountHeaderText') %></span>
                 <span class="settingsTabHeaderDesc"><%- lang('settings.tabAccountHeaderDesc') %></span>
@@ -71,7 +73,7 @@
             </div> -->
         
         </div>
-        <div id="settingsTabMinecraft" class="settingsTab" style="display: none;">
+        <div id="settingsTabMinecraft" class="settingsTab" data-sa-bay="minecraft" role="tabpanel" aria-labelledby="settingsNavMinecraft" aria-hidden="true" tabindex="0" style="display: none;">
             <div class="settingsTabHeader">
                 <span class="settingsTabHeaderText"><%- lang('settings.minecraftTabHeaderText') %></span>
                 <span class="settingsTabHeaderDesc"><%- lang('settings.minecraftTabHeaderDesc') %></span>
@@ -79,9 +81,9 @@
             <div id="settingsGameResolutionContainer">
                 <span class="settingsFieldTitle"><%- lang('settings.gameResolutionTitle') %></span>
                 <div id="settingsGameResolutionContent">
-                    <input type="number" id="settingsGameWidth" min="0" cValue="GameWidth">
-                    <div id="settingsGameResolutionCross">&#10006;</div>
-                    <input type="number" id="settingsGameHeight" min="0" cValue="GameHeight">
+                    <input type="number" id="settingsGameWidth" min="0" cValue="GameWidth" aria-label="Ancho de resolución">
+                    <div id="settingsGameResolutionCross" aria-hidden="true">&#10006;</div>
+                    <input type="number" id="settingsGameHeight" min="0" cValue="GameHeight" aria-label="Alto de resolución">
                 </div>
             </div>
             <div class="settingsFieldContainer">
@@ -90,8 +92,8 @@
                 </div>
                 <div class="settingsFieldRight">
                     <label class="toggleSwitch">
-                        <input type="checkbox" cValue="Fullscreen">
-                        <span class="toggleSwitchSlider"></span>
+                        <input type="checkbox" cValue="Fullscreen" aria-label="Iniciar Minecraft en pantalla completa">
+                        <span class="toggleSwitchSlider" aria-hidden="true"></span>
                     </label>
                 </div>
             </div>
@@ -101,8 +103,8 @@
                 </div>
                 <div class="settingsFieldRight">
                     <label class="toggleSwitch">
-                        <input type="checkbox" cValue="AutoConnect">
-                        <span class="toggleSwitchSlider"></span>
+                        <input type="checkbox" cValue="AutoConnect" aria-label="Conectar automáticamente al servidor">
+                        <span class="toggleSwitchSlider" aria-hidden="true"></span>
                     </label>
                 </div>
             </div>
@@ -113,13 +115,13 @@
                 </div>
                 <div class="settingsFieldRight">
                     <label class="toggleSwitch">
-                        <input type="checkbox" cValue="LaunchDetached">
-                        <span class="toggleSwitchSlider"></span>
+                        <input type="checkbox" cValue="LaunchDetached" aria-label="Mantener el launcher abierto durante el juego">
+                        <span class="toggleSwitchSlider" aria-hidden="true"></span>
                     </label>
                 </div>
             </div>
         </div>
-        <div id="settingsTabMods" class="settingsTab" style="display: none;">
+        <div id="settingsTabMods" class="settingsTab sa-module-bay" data-sa-bay="mods" role="tabpanel" aria-labelledby="settingsNavMods" aria-hidden="true" tabindex="0" style="display: none;">
             <div class="settingsTabHeader">
                 <span class="settingsTabHeaderText"><%- lang('settings.tabModsHeaderText') %></span>
                 <span class="settingsTabHeaderDesc"><%- lang('settings.tabModsHeaderDesc') %></span>
@@ -130,7 +132,7 @@
                 </div>
                 <div class="settingsSwitchServerContainer">
                     <div class="settingsSwitchServerContent">
-                        <button class="settingsSwitchServerButton"><%- lang('settings.switchServerButton') %></button>
+                        <button class="settingsSwitchServerButton" aria-label="Cambiar servidor para configurar mods"><%- lang('settings.switchServerButton') %></button>
                     </div>
                 </div>
             </div>
@@ -149,7 +151,7 @@
                 </div>
                 <div id="settingsDropinModsContainer">
                     <div class="settingsModsHeader"><%- lang('settings.dropinMods') %></div>
-                    <button id="settingsDropinFileSystemButton"><%- lang('settings.addMods') %> <span id="settingsDropinRefreshNote"><%- lang('settings.dropinRefreshNote') %></span></button>
+                    <button id="settingsDropinFileSystemButton" aria-label="Agregar mods desde el sistema"><%- lang('settings.addMods') %> <span id="settingsDropinRefreshNote"><%- lang('settings.dropinRefreshNote') %></span></button>
                     <div id="settingsDropinModsContent">
                         
                     </div>
@@ -158,7 +160,7 @@
                     <div class="settingsModsHeader"><%- lang('settings.shaderpacks') %></div>
                     <div id="settingsShaderpackDesc"><%- lang('settings.shaderpackDesc') %></div>
                     <div id="settingsShaderpackWrapper">
-                        <button id="settingsShaderpackButton"> + </button>
+                        <button id="settingsShaderpackButton" aria-label="Agregar paquete de shaders"> + </button>
                         <div class="settingsSelectContainer">
                             <div class="settingsSelectSelected" id="settingsShadersSelected"><%- lang('settings.selectShaderpack') %></div>
                             <div class="settingsSelectOptions" id="settingsShadersOptions" hidden>
@@ -169,7 +171,7 @@
                 </div>
             </div>
         </div>
-        <div id="settingsTabJava" class="settingsTab" style="display: none;">
+        <div id="settingsTabJava" class="settingsTab" data-sa-bay="java" role="tabpanel" aria-labelledby="settingsNavJava" aria-hidden="true" tabindex="0" style="display: none;">
             <div class="settingsTabHeader">
                 <span class="settingsTabHeaderText"><%- lang('settings.tabJavaHeaderText') %></span>
                 <span class="settingsTabHeaderDesc"><%- lang('settings.tabJavaHeaderDesc') %></span>
@@ -180,7 +182,7 @@
                 </div>
                 <div class="settingsSwitchServerContainer">
                     <div class="settingsSwitchServerContent">
-                        <button class="settingsSwitchServerButton"><%- lang('settings.switchServerButton') %></button>
+                        <button class="settingsSwitchServerButton" aria-label="Cambiar servidor para configurar Java"><%- lang('settings.switchServerButton') %></button>
                     </div>
                 </div>
             </div>
@@ -243,7 +245,7 @@
                                 </g>
                             </svg>
                         </div>
-                        <input class="settingsFileSelVal" id="settingsJavaExecVal" type="text" value="null" cValue="JavaExecutable" serverDependent disabled>
+                        <input class="settingsFileSelVal" id="settingsJavaExecVal" type="text" value="null" cValue="JavaExecutable" serverDependent aria-label="Ejecutable de Java seleccionado" disabled>
                         <button class="settingsFileSelButton" id="settingsJavaExecSel" dialogTitle="<%- lang('settings.javaExecSelDialogTitle') %>" dialogDirectory="false"><%- lang('settings.javaExecSelButtonText') %></button>
                     </div>
                 </div>
@@ -266,12 +268,12 @@
                             </g>
                         </svg>
                     </div>
-                    <input id="settingsJVMOptsVal" cValue="JVMOptions" serverDependent type="text">
+                    <input id="settingsJVMOptsVal" cValue="JVMOptions" serverDependent type="text" aria-label="Opciones de la máquina virtual de Java">
                 </div>
                 <div id="settingsJVMOptsDesc"><%- lang('settings.jvmOptsDesc') %><br><a href="#" id="settingsJvmOptsLink"><!-- Available Options --></a></div>
             </div>
         </div>
-        <div id="settingsTabLauncher" class="settingsTab" style="display: none;">
+        <div id="settingsTabLauncher" class="settingsTab" data-sa-bay="launcher" role="tabpanel" aria-labelledby="settingsNavLauncher" aria-hidden="true" tabindex="0" style="display: none;">
             <div class="settingsTabHeader">
                 <span class="settingsTabHeaderText"><%- lang('settings.launcherTabHeaderText') %></span>
                 <span class="settingsTabHeaderDesc"><%- lang('settings.launcherTabHeaderDesc') %></span>
@@ -283,8 +285,20 @@
                 </div>
                 <div class="settingsFieldRight">
                     <label class="toggleSwitch">
-                        <input type="checkbox" cValue="AllowPrerelease">
-                        <span class="toggleSwitchSlider"></span>
+                        <input type="checkbox" cValue="AllowPrerelease" aria-label="Permitir versiones preliminares del launcher">
+                        <span class="toggleSwitchSlider" aria-hidden="true"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="settingsFieldContainer" data-sa-setting="show-intro">
+                <div class="settingsFieldLeft">
+                    <label class="settingsFieldTitle" for="settingsShowIntro"><%- lang('settings.showIntroTitle') %></label>
+                    <span class="settingsFieldDesc" id="settingsShowIntroDesc"><%- lang('settings.showIntroDesc') %></span>
+                </div>
+                <div class="settingsFieldRight">
+                    <label class="toggleSwitch" for="settingsShowIntro">
+                        <input type="checkbox" cValue="ShowIntro" id="settingsShowIntro" aria-describedby="settingsShowIntroDesc">
+                        <span class="toggleSwitchSlider" aria-hidden="true"></span>
                     </label>
                 </div>
             </div>
@@ -301,14 +315,14 @@
                                 </g>
                             </svg>
                         </div>
-                        <input class="settingsFileSelVal" type="text" value="null" cValue="DataDirectory" disabled>
+                        <input class="settingsFileSelVal" type="text" value="null" cValue="DataDirectory" aria-label="Directorio de datos seleccionado" disabled>
                         <button class="settingsFileSelButton" dialogTitle="<%- lang('settings.selectDataDirectory') %>" dialogDirectory="true"><%- lang('settings.chooseFolder') %></button>
                     </div>
                 </div>
                 <div class="settingsFileSelDesc"><%- lang('settings.dataDirectoryDesc') %></div>
             </div>
         </div>
-        <div id="settingsTabAbout" class="settingsTab" style="display: none;">
+        <div id="settingsTabAbout" class="settingsTab" data-sa-bay="about" role="tabpanel" aria-labelledby="settingsNavAbout" aria-hidden="true" tabindex="0" style="display: none;">
             <div class="settingsTabHeader">
                 <span class="settingsTabHeaderText"><%- lang('settings.aboutTabHeaderText') %></span>
                 <span class="settingsTabHeaderDesc"><%- lang('settings.aboutTabHeaderDesc') %></span>
@@ -353,7 +367,7 @@
                 </div>
             </div>
         </div>
-        <div id="settingsTabUpdate" class="settingsTab" style="display: none;">
+        <div id="settingsTabUpdate" class="settingsTab" data-sa-bay="update" role="tabpanel" aria-labelledby="settingsNavUpdate" aria-hidden="true" tabindex="0" style="display: none;">
             <div class="settingsTabHeader">
                 <span class="settingsTabHeaderText"><%- lang('settings.launcherUpdatesHeaderText') %></span>
                 <span class="settingsTabHeaderDesc"><%- lang('settings.launcherUpdatesHeaderDesc') %></span>
@@ -391,5 +405,7 @@
             </div>
         </div>
     </div>
+    <div id="settingsA11yStatus" class="squadSettingsVisuallyHidden" role="status" aria-live="polite" aria-atomic="true" hidden></div>
     <script src="./assets/js/scripts/settings.js"></script>
+    <script src="./assets/js/scripts/squad-arcade-settings.js"></script>
 </div>
