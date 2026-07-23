@@ -126,41 +126,41 @@
                 <span class="settingsTabHeaderText"><%- lang('settings.tabModsHeaderText') %></span>
                 <span class="settingsTabHeaderDesc"><%- lang('settings.tabModsHeaderDesc') %></span>
             </div>
-            <div class="settingsSelServContainer">
+            <div class="settingsSelServContainer sa-equipment-server" data-sa-rack="active-server">
                 <div class="settingsSelServContent">
 
                 </div>
                 <div class="settingsSwitchServerContainer">
                     <div class="settingsSwitchServerContent">
-                        <button class="settingsSwitchServerButton" aria-label="Cambiar servidor para configurar mods"><%- lang('settings.switchServerButton') %></button>
+                        <button class="settingsSwitchServerButton" data-sa-equipment-action="switch-server" aria-label="Cambiar servidor para configurar mods"><%- lang('settings.switchServerButton') %></button>
                     </div>
                 </div>
             </div>
-            <div id="settingsModsContainer">
-                <div id="settingsReqModsContainer">
-                    <div class="settingsModsHeader"><%- lang('settings.requiredMods') %></div>
+            <div id="settingsModsContainer" class="sa-equipment-rack" data-sa-rack="equipment" data-sa-label="RACK // MÓDULOS DEL PACK">
+                <div id="settingsReqModsContainer" class="sa-mod-bank sa-mod-bank-required" data-sa-module-bank="required" data-sa-required-lock-slot>
+                    <div class="settingsModsHeader sa-rack-heading"><%- lang('settings.requiredMods') %></div>
                     <div id="settingsReqModsContent">
 
                     </div>
                 </div>
-                <div id="settingsOptModsContainer">
-                    <div class="settingsModsHeader"><%- lang('settings.optionalMods') %></div>
+                <div id="settingsOptModsContainer" class="sa-mod-bank sa-mod-bank-optional" data-sa-module-bank="optional">
+                    <div class="settingsModsHeader sa-rack-heading"><%- lang('settings.optionalMods') %></div>
                     <div id="settingsOptModsContent">
                         
                     </div>
                 </div>
-                <div id="settingsDropinModsContainer">
-                    <div class="settingsModsHeader"><%- lang('settings.dropinMods') %></div>
-                    <button id="settingsDropinFileSystemButton" aria-label="Agregar mods desde el sistema"><%- lang('settings.addMods') %> <span id="settingsDropinRefreshNote"><%- lang('settings.dropinRefreshNote') %></span></button>
+                <div id="settingsDropinModsContainer" class="sa-equipment-panel sa-equipment-panel-external" data-sa-rack="external-files">
+                    <div class="settingsModsHeader sa-rack-heading"><%- lang('settings.dropinMods') %></div>
+                    <button id="settingsDropinFileSystemButton" data-sa-equipment-action="open-mods-folder" aria-label="Agregar mods desde el sistema"><%- lang('settings.addMods') %> <span id="settingsDropinRefreshNote"><%- lang('settings.dropinRefreshNote') %></span></button>
                     <div id="settingsDropinModsContent">
                         
                     </div>
                 </div>
-                <div id="settingsShadersContainer">
-                    <div class="settingsModsHeader"><%- lang('settings.shaderpacks') %></div>
+                <div id="settingsShadersContainer" class="sa-equipment-panel sa-equipment-panel-shaders" data-sa-rack="shaderpacks">
+                    <div class="settingsModsHeader sa-rack-heading"><%- lang('settings.shaderpacks') %></div>
                     <div id="settingsShaderpackDesc"><%- lang('settings.shaderpackDesc') %></div>
                     <div id="settingsShaderpackWrapper">
-                        <button id="settingsShaderpackButton" aria-label="Agregar paquete de shaders"> + </button>
+                        <button id="settingsShaderpackButton" data-sa-equipment-action="open-shader-folder" aria-label="Agregar paquete de shaders"> + </button>
                         <div class="settingsSelectContainer">
                             <div class="settingsSelectSelected" id="settingsShadersSelected"><%- lang('settings.selectShaderpack') %></div>
                             <div class="settingsSelectOptions" id="settingsShadersOptions" hidden>
@@ -408,4 +408,5 @@
     <div id="settingsA11yStatus" class="squadSettingsVisuallyHidden" role="status" aria-live="polite" aria-atomic="true" hidden></div>
     <script src="./assets/js/scripts/settings.js"></script>
     <script src="./assets/js/scripts/squad-arcade-settings.js"></script>
+    <script src="./assets/js/scripts/squad-arcade-settings-mods.js"></script>
 </div>

@@ -14,6 +14,10 @@ const appMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'app.ejs'), 'utf
 const languageSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'lang', 'en_US.toml'), 'utf8')
 const settingsStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'squad-arcade-settings.css'), 'utf8')
 const settingsVisualSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'squad-arcade-settings.js'), 'utf8')
+const dropinModUtilSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'dropinmodutil.js'), 'utf8')
+const processBuilderSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'processbuilder.js'), 'utf8')
+const settingsModsStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'squad-arcade-settings-mods.css'), 'utf8')
+const settingsModsVisualSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'squad-arcade-settings-mods.js'), 'utf8')
 
 function extractFunction(source, name){
     const signature = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`)
@@ -88,6 +92,24 @@ function loadFunctions(source, names, context = {}, prelude = ''){
     return { context: sandbox, ...sandbox.__sut }
 }
 
+function loadDropinModUtil(fsStub, electronStub = { ipcRenderer: blockedBoundary('IPC'), shell: blockedBoundary('shell') }, consoleStub = console){
+    const module = { exports: {} }
+    const sandbox = {
+        console: consoleStub,
+        exports: module.exports,
+        module,
+        require(name){
+            if(name === 'fs-extra') return fsStub
+            if(name === 'path') return path
+            if(name === 'electron') return electronStub
+            if(name === './ipcconstants') return { SHELL_OPCODE: { TRASH_ITEM: 'trash-item' } }
+            throw new Error(`Unexpected module: ${name}`)
+        }
+    }
+    vm.runInNewContext(dropinModUtilSource, sandbox, { filename: 'dropinmodutil.js' })
+    return module.exports
+}
+
 class FakeClassList {
     constructor(values = []){
         this.values = new Set(values)
@@ -103,6 +125,16 @@ class FakeClassList {
 
     remove(value){
         this.values.delete(value)
+    }
+
+    toggle(value, force){
+        const enabled = force == null ? !this.values.has(value) : force
+        if(enabled){
+            this.values.add(value)
+        } else {
+            this.values.delete(value)
+        }
+        return enabled
     }
 }
 
@@ -125,6 +157,9 @@ class FakeElement {
         this.onclick = null
         this.focusCalls = 0
         this.clickCalls = 0
+        this.children = []
+        this.childNodes = this.children
+        this.parentNode = null
     }
 
     addEventListener(type, listener){
@@ -173,6 +208,21 @@ class FakeElement {
 
     removeAttribute(name){
         this.attributes.delete(name)
+    }
+
+    appendChild(child){
+        child.parentNode = this
+        this.children.push(child)
+        return child
+    }
+
+    remove(){
+        if(this.parentNode != null){
+            this.parentNode.children = this.parentNode.children.filter(child => child !== this)
+            this.parentNode.childNodes = this.parentNode.children
+            this.parentNode = null
+        }
+        this.removed = true
     }
 }
 
@@ -691,6 +741,1079 @@ function testModsAndScrollContracts(){
         assert.match(settingsMarkup, headerFirst, `${id} keeps its header as first child`)
     })
     assert.match(settingsStyles, /\.settingsTab\s*\{[^}]*overflow-y:\s*auto/s, 'tab-local vertical scrolling remains active')
+}
+
+function createDistroModule({ id, name, required, defaultValue = true, subModules = [], type = 'forge', version = '1.0.0' }){
+    return {
+        rawModule: { name, type },
+        mavenComponents: { version },
+        subModules,
+        getRequired(){ return { def: defaultValue, value: required } },
+        getVersionlessMavenIdentifier(){ return id },
+        hasSubModules(){ return subModules.length > 0 }
+    }
+}
+
+function createModFixture(){
+    const coreApi = createDistroModule({ id: 'com.acme:core-api', name: 'Core API', required: true, version: '2.4.1' })
+    const telemetry = createDistroModule({ id: 'com.acme:telemetry', name: 'Telemetry', required: false, defaultValue: false, version: '3.0.0' })
+    const waypoint = createDistroModule({ id: 'com.acme:waypoints', name: 'Waypoints', required: false, defaultValue: true, version: '1.8.2' })
+    return [
+        createDistroModule({ id: 'com.acme:core', name: 'Core', required: true, subModules: [coreApi, telemetry], version: '2.4.1' }),
+        createDistroModule({ id: 'com.acme:minimap', name: 'Minimap', required: false, defaultValue: true, subModules: [waypoint], version: '5.7.0' }),
+        createDistroModule({ id: 'com.acme:voice', name: 'Voice', required: false, defaultValue: false, version: '4.1.0' })
+    ]
+}
+
+function currentModConfiguration(modules){
+    const origin = { getRequired(){ return { def: true, value: true } } }
+    const sut = loadFunctions(uiBinderSource, ['scanOptionalSubModules'], {
+        Type: { FabricMod: 'fabric', ForgeMod: 'forge', LiteLoader: 'liteloader', LiteMod: 'litemod' }
+    })
+    return JSON.parse(JSON.stringify(sut.scanOptionalSubModules(modules, origin)))
+}
+
+function testModsContractSnapshot(){
+    const modsMarkup = settingsMarkup.slice(settingsMarkup.indexOf('id="settingsTabMods"'), settingsMarkup.indexOf('id="settingsTabJava"'))
+    const ids = [...modsMarkup.matchAll(/\bid="([^"]+)"/g)].map(match => match[1])
+    assert.deepEqual(ids, [
+        'settingsTabMods',
+        'settingsModsContainer',
+        'settingsReqModsContainer',
+        'settingsReqModsContent',
+        'settingsOptModsContainer',
+        'settingsOptModsContent',
+        'settingsDropinModsContainer',
+        'settingsDropinFileSystemButton',
+        'settingsDropinRefreshNote',
+        'settingsDropinModsContent',
+        'settingsShadersContainer',
+        'settingsShaderpackDesc',
+        'settingsShaderpackWrapper',
+        'settingsShaderpackButton',
+        'settingsShadersSelected',
+        'settingsShadersOptions'
+    ])
+    assert.match(modsMarkup, /id="settingsTabMods" class="settingsTab sa-module-bay" data-sa-bay="mods" role="tabpanel" aria-labelledby="settingsNavMods" aria-hidden="true" tabindex="0"/)
+    assert.equal((modsMarkup.match(/class="settingsModsHeader(?: [^"]*)?"/g) || []).length, 4)
+    assert.match(modsMarkup, /class="settingsSelServContent"/)
+    assert.match(modsMarkup, /class="settingsSwitchServerButton"[^>]*aria-label="Cambiar servidor para configurar mods"/)
+    assert.match(modsMarkup, /id="settingsDropinFileSystemButton"[^>]*aria-label="Agregar mods desde el sistema"/)
+    assert.match(modsMarkup, /id="settingsShaderpackButton"[^>]*aria-label="Agregar paquete de shaders"/)
+    assert.match(modsMarkup, /class="settingsSelectOptions" id="settingsShadersOptions" hidden/)
+}
+
+function testEquipmentRackMarkupContract(){
+    const modsMarkup = settingsMarkup.slice(settingsMarkup.indexOf('id="settingsTabMods"'), settingsMarkup.indexOf('id="settingsTabJava"'))
+    const orderedIds = [...modsMarkup.matchAll(/\bid="([^"]+)"/g)].map(match => match[1])
+    assert.deepEqual(orderedIds, [
+        'settingsTabMods',
+        'settingsModsContainer',
+        'settingsReqModsContainer',
+        'settingsReqModsContent',
+        'settingsOptModsContainer',
+        'settingsOptModsContent',
+        'settingsDropinModsContainer',
+        'settingsDropinFileSystemButton',
+        'settingsDropinRefreshNote',
+        'settingsDropinModsContent',
+        'settingsShadersContainer',
+        'settingsShaderpackDesc',
+        'settingsShaderpackWrapper',
+        'settingsShaderpackButton',
+        'settingsShadersSelected',
+        'settingsShadersOptions'
+    ])
+    assert.match(modsMarkup, /class="settingsSelServContainer sa-equipment-server" data-sa-rack="active-server"/)
+    assert.match(modsMarkup, /id="settingsModsContainer" class="sa-equipment-rack" data-sa-rack="equipment" data-sa-label="RACK \/\/ MÓDULOS DEL PACK"/)
+    assert.match(modsMarkup, /id="settingsReqModsContainer" class="sa-mod-bank sa-mod-bank-required" data-sa-module-bank="required" data-sa-required-lock-slot/)
+    assert.match(modsMarkup, /id="settingsOptModsContainer" class="sa-mod-bank sa-mod-bank-optional" data-sa-module-bank="optional"/)
+    assert.match(modsMarkup, /id="settingsDropinModsContainer" class="sa-equipment-panel sa-equipment-panel-external" data-sa-rack="external-files"/)
+    assert.match(modsMarkup, /id="settingsShadersContainer" class="sa-equipment-panel sa-equipment-panel-shaders" data-sa-rack="shaderpacks"/)
+    assert.equal((modsMarkup.match(/class="settingsModsHeader sa-rack-heading"/g) || []).length, 4)
+    assert.ok(modsMarkup.indexOf('settingsTabHeader') < modsMarkup.indexOf('sa-equipment-server'), 'Mods remains header-first')
+    assert.ok(modsMarkup.indexOf('settingsReqModsContainer') < modsMarkup.indexOf('settingsOptModsContainer'))
+    assert.ok(modsMarkup.indexOf('settingsOptModsContainer') < modsMarkup.indexOf('settingsDropinModsContainer'))
+    assert.ok(modsMarkup.indexOf('settingsDropinModsContainer') < modsMarkup.indexOf('settingsShadersContainer'))
+}
+
+function testEquipmentRackStylesheetContract(){
+    const serviceBayIndex = appMarkup.indexOf('./assets/css/squad-arcade-settings.css')
+    const equipmentRackIndex = appMarkup.indexOf('./assets/css/squad-arcade-settings-mods.css')
+    assert.ok(serviceBayIndex >= 0 && serviceBayIndex < equipmentRackIndex, 'equipment rack CSS loads after Service Bay')
+    assert.equal((appMarkup.match(/squad-arcade-settings-mods\.css/g) || []).length, 1)
+
+    const prefix = '#settingsContainer.is-squad-settings-ready #settingsTabMods.sa-module-bay'
+    const selectorHeaders = [...settingsModsStyles.matchAll(/([^{}]+)\{/g)]
+        .map(match => match[1].trim())
+        .filter(header => !header.startsWith('@'))
+    assert.ok(selectorHeaders.length > 0)
+    selectorHeaders.forEach(header => {
+        header.split(',').map(selector => selector.trim()).forEach(selector => {
+            assert.equal(selector.startsWith(prefix), true, `rack selector is namespaced: ${selector}`)
+        })
+    })
+    assert.doesNotMatch(settingsMarkup, /is-squad-settings-ready/, 'markup does not opt into the progressive stylesheet')
+}
+
+function testEquipmentRackLayoutContract(){
+    assert.match(settingsModsStyles, /#settingsModsContainer\.sa-equipment-rack\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/s)
+    assert.match(settingsModsStyles, /@media \(max-width:\s*860px\)[^]*#settingsModsContainer\.sa-equipment-rack\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/)
+    assert.doesNotMatch(settingsModsStyles, /\boverflow(?:-[xy])?\s*:/, 'rack adds no nested scrolling')
+    assert.match(settingsStyles, /\.settingsTab\s*\{[^}]*overflow-y:\s*auto/s, 'the Settings tab remains the sole scroll owner')
+    assert.match(settingsModsStyles, /--sa-rack-surface:\s*rgba\([^)]*,\s*0\.72\)/)
+    assert.match(settingsModsStyles, /background:[^;}]*(?:rgba\(|var\(--sa-rack-surface|transparent)/)
+    assert.doesNotMatch(settingsModsStyles, /background(?:-color)?:\s*#[0-9a-f]{3,8}/i, 'rack surfaces never become opaque hex backgrounds')
+    assert.match(settingsModsStyles, /var\(--sa-settings-accent-rgb\)/, 'rack inherits Service Bay theme variables')
+    assert.doesNotMatch(settingsModsStyles, /data-theme=/, 'rack adds no theme-specific logic')
+}
+
+function testEquipmentRackInteractionBoundaries(){
+    const modsMarkup = settingsMarkup.slice(settingsMarkup.indexOf('id="settingsTabMods"'), settingsMarkup.indexOf('id="settingsTabJava"'))
+    const staticButtons = [...modsMarkup.matchAll(/<button[^>]*>/g)].map(match => match[0])
+    assert.equal(staticButtons.length, 3, 'rack adds no controls beyond the three legacy buttons')
+    assert.match(staticButtons[0], /class="settingsSwitchServerButton"[^>]+data-sa-equipment-action="switch-server"/)
+    assert.match(staticButtons[1], /id="settingsDropinFileSystemButton"[^>]+data-sa-equipment-action="open-mods-folder"/)
+    assert.match(staticButtons[2], /id="settingsShaderpackButton"[^>]+data-sa-equipment-action="open-shader-folder"/)
+    assert.match(modsMarkup, /id="settingsShadersSelected"/)
+    assert.match(modsMarkup, /id="settingsShadersOptions" hidden/)
+    assert.doesNotMatch(`${modsMarkup}\n${settingsModsStyles}`, /showOpenDialog|file.?picker|seleccionar archivo|confirm(?:ar|ación)/i)
+    assert.doesNotMatch(settingsModsStyles, /badge|count|counter/i, 'rack invents no static counts')
+
+    const pseudoBlocks = [...settingsModsStyles.matchAll(/([^{}]*::(?:before|after)[^{}]*)\{([^{}]*)\}/g)]
+    assert.ok(pseudoBlocks.length > 0)
+    pseudoBlocks.forEach(([, selector, declarations]) => {
+        assert.match(declarations, /pointer-events:\s*none/, `${selector.trim()} cannot intercept input`)
+    })
+    assert.match(settingsModsStyles, /\[data-sa-required-lock-slot\][^{}]*\.sa-rack-heading::after\s*\{[^}]*opacity:\s*0/s, 'required lock remains a non-functional reserved slot')
+}
+
+class ModsHarnessElement extends FakeElement {
+    constructor(options = {}){
+        super(options)
+        this.style = {
+            display: '',
+            opacity: '',
+            transform: '',
+            removeProperty(name){ this[name] = '' }
+        }
+    }
+
+    appendChild(child){
+        super.appendChild(child)
+        if(this.children.length === 1){
+            this.firstElementChild = child
+        }
+        return child
+    }
+
+    matches(selector){
+        const notDropin = selector.includes(':not([dropin])')
+        const normalized = selector.replace(':not([dropin])', '')
+        const tag = normalized.match(/^[a-z]+/i)?.[0]
+        if(tag != null && this.tagName !== tag.toUpperCase()) return false
+        const id = normalized.match(/#([\w-]+)/)?.[1]
+        if(id != null && this.id !== id) return false
+        const classes = [...normalized.matchAll(/\.([\w-]+)/g)].map(match => match[1])
+        if(classes.some(name => !this.classList.contains(name))) return false
+        const attributes = [...normalized.matchAll(/\[([\w-]+)(?:=["']([^"']*)["'])?\]/g)]
+        if(attributes.some(([, name, value]) => !this.hasAttribute(name) || (value != null && this.getAttribute(name) !== value))) return false
+        if(notDropin && this.hasAttribute('dropin')) return false
+        return true
+    }
+
+    querySelectorAll(selector){
+        const result = []
+        const visit = element => {
+            element.children.forEach(child => {
+                if(child.matches(selector)) result.push(child)
+                visit(child)
+            })
+        }
+        visit(this)
+        return result
+    }
+
+    querySelector(selector){
+        return this.querySelectorAll(selector)[0] || null
+    }
+
+    closest(selector){
+        let current = this
+        while(current != null){
+            if(current.matches(selector)) return current
+            current = current.parentNode
+        }
+        return null
+    }
+
+    toggleAttribute(name){
+        if(this.hasAttribute(name)){
+            this.removeAttribute(name)
+        } else {
+            this.setAttribute(name, '')
+        }
+    }
+
+    dispatch(type, event = {}){
+        const dispatched = event.__modsEvent || {
+            target: event.target || this,
+            key: event.key,
+            defaultPrevented: false,
+            propagationStopped: false,
+            preventDefault(){ this.defaultPrevented = true },
+            stopPropagation(){ this.propagationStopped = true }
+        }
+        dispatched.__modsEvent = dispatched
+        this.listeners.get(type)?.forEach(listener => listener(dispatched))
+        if(!dispatched.propagationStopped && this.parentNode != null){
+            this.parentNode.dispatch(type, dispatched)
+        }
+        return dispatched
+    }
+
+    click(){
+        if(this.disabled){
+            return
+        }
+        this.clickCalls++
+        const event = {
+            target: this,
+            key: undefined,
+            defaultPrevented: false,
+            propagationStopped: false,
+            preventDefault(){ this.defaultPrevented = true },
+            stopPropagation(){ this.propagationStopped = true }
+        }
+        event.__modsEvent = event
+        this.onclick?.(event)
+        if(!event.propagationStopped) this.dispatch('click', event)
+    }
+}
+
+function createModsAnimeStub({ failAnimate = false, supportsRevert = true } = {}){
+    const calls = { animations: [], cancelled: 0, reverted: 0 }
+    return {
+        calls,
+        api: {
+            animate(targets, parameters){
+                const targetList = Array.from(targets)
+                const originals = targetList.map(target => ({ target, opacity: target.style.opacity, transform: target.style.transform }))
+                targetList.forEach(target => {
+                    target.style.opacity = '0.55'
+                    target.style.transform = 'translateY(7px)'
+                })
+                if(failAnimate) throw new Error('Animation failed')
+                const animation = {
+                    cancel(){ calls.cancelled++ },
+                    complete(){ parameters.onComplete?.() }
+                }
+                if(supportsRevert){
+                    animation.revert = () => {
+                        calls.reverted++
+                        originals.forEach(({ target, opacity, transform }) => {
+                            target.style.opacity = opacity
+                            target.style.transform = transform
+                        })
+                    }
+                }
+                calls.animations.push({ animation, parameters, targets: targetList })
+                return animation
+            }
+        }
+    }
+}
+
+function createModsAdapterHarness({ animeAvailable = true, animeFails = false, animeSupportsRevert = true, missingId = null, modsVisible = true, reducedMotion = false, serviceReady = true } = {}){
+    const elements = new Map()
+    const create = (id = '', options = {}) => {
+        const element = new ModsHarnessElement({ id, ...options })
+        if(id) elements.set(id, element)
+        return element
+    }
+    const root = create('settingsContainer')
+    root.style.display = 'flex'
+    if(serviceReady) root.classList.add('is-squad-settings-ready')
+    const tab = create('settingsTabMods', { classes: ['settingsTab', 'sa-module-bay'] })
+    tab.style.display = modsVisible ? 'flex' : 'none'
+    tab.setAttribute('aria-hidden', String(!modsVisible))
+    const header = create('', { classes: ['settingsTabHeader'] })
+    tab.appendChild(header)
+    const server = create('', { classes: ['settingsSelServContainer', 'sa-equipment-server'] })
+    const switchButton = create('', { tagName: 'BUTTON', classes: ['settingsSwitchServerButton'] })
+    server.appendChild(switchButton)
+    tab.appendChild(server)
+    const modsContainer = create('settingsModsContainer', { classes: ['sa-equipment-rack'] })
+    const requiredContainer = create('settingsReqModsContainer', { classes: ['sa-mod-bank'] })
+    const requiredContent = create('settingsReqModsContent')
+    const optionalContainer = create('settingsOptModsContainer', { classes: ['sa-mod-bank'] })
+    const optionalContent = create('settingsOptModsContent')
+    const dropinContainer = create('settingsDropinModsContainer', { classes: ['sa-equipment-panel'] })
+    const dropButton = create('settingsDropinFileSystemButton', { tagName: 'BUTTON' })
+    dropButton.setAttribute('aria-label', 'Agregar mods desde el sistema')
+    const refreshNote = create('settingsDropinRefreshNote')
+    const dropinContent = create('settingsDropinModsContent')
+    const shadersContainer = create('settingsShadersContainer', { classes: ['sa-equipment-panel'] })
+    const shaderDesc = create('settingsShaderpackDesc')
+    const shaderButton = create('settingsShaderpackButton', { tagName: 'BUTTON' })
+    shaderButton.setAttribute('aria-label', 'Agregar paquete de shaders')
+    const shaderWrapper = create('settingsShaderpackWrapper')
+    const selectContainer = create('', { classes: ['settingsSelectContainer'] })
+    const shaderSelected = create('settingsShadersSelected', { classes: ['settingsSelectSelected'] })
+    const shaderOptions = create('settingsShadersOptions', { classes: ['settingsSelectOptions'] })
+    shaderOptions.setAttribute('hidden', '')
+    selectContainer.appendChild(shaderSelected)
+    selectContainer.appendChild(shaderOptions)
+    shaderWrapper.appendChild(shaderButton)
+    shaderWrapper.appendChild(selectContainer)
+    shadersContainer.appendChild(shaderDesc)
+    shadersContainer.appendChild(shaderWrapper)
+    requiredContainer.appendChild(requiredContent)
+    optionalContainer.appendChild(optionalContent)
+    dropinContainer.appendChild(dropButton)
+    dropinContainer.appendChild(refreshNote)
+    dropinContainer.appendChild(dropinContent)
+    modsContainer.appendChild(requiredContainer)
+    modsContainer.appendChild(optionalContainer)
+    modsContainer.appendChild(dropinContainer)
+    modsContainer.appendChild(shadersContainer)
+    tab.appendChild(modsContainer)
+    root.appendChild(tab)
+    const liveRegion = create('settingsA11yStatus')
+    const doneButton = create('settingsNavDone', { tagName: 'BUTTON' })
+    root.appendChild(liveRegion)
+    root.appendChild(doneButton)
+
+    function createCard(id, name, { checked = false, dropin = false, enabled = false, required = false, submod = false } = {}){
+        const classes = ['settingsBaseMod', dropin ? 'settingsDropinMod' : submod ? 'settingsSubMod' : 'settingsMod']
+        const card = create(id, { classes })
+        if(enabled) card.setAttribute('enabled', '')
+        const content = create('', { classes: ['settingsModContent'] })
+        const main = create('', { classes: ['settingsModMainWrapper'] })
+        const details = create('', { classes: ['settingsModDetails'] })
+        const nameElement = create('', { classes: ['settingsModName'] })
+        nameElement.textContent = name
+        details.appendChild(nameElement)
+        if(dropin){
+            const remove = create('', { tagName: 'BUTTON', classes: ['settingsDropinRemoveButton'] })
+            remove.setAttribute('remmod', id)
+            remove.onclick = () => { remove.legacyRemovals = (remove.legacyRemovals || 0) + 1 }
+            details.appendChild(remove)
+        }
+        main.appendChild(details)
+        const label = create('', { tagName: 'LABEL', classes: ['toggleSwitch'] })
+        if(required) label.setAttribute('reqmod', '')
+        const input = create('', { tagName: 'INPUT', type: 'checkbox' })
+        input.setAttribute('type', 'checkbox')
+        input.checked = checked
+        if(!required) input.setAttribute('formod', id)
+        if(dropin) input.setAttribute('dropin', '')
+        const slider = create('', { classes: ['toggleSwitchSlider'] })
+        label.appendChild(input)
+        label.appendChild(slider)
+        content.appendChild(main)
+        content.appendChild(label)
+        card.appendChild(content)
+        return { card, details, input, label, nameElement, remove: details.querySelector('[remmod]') }
+    }
+
+    const required = createCard('com.acme:core', 'Core', { checked: true, enabled: true, required: true })
+    const subContainer = create('', { classes: ['settingsSubModContainer'] })
+    const optionalSubmod = createCard('com.acme:telemetry', 'Telemetry', { submod: true })
+    subContainer.appendChild(optionalSubmod.card)
+    required.card.appendChild(subContainer)
+    requiredContent.appendChild(required.card)
+    const optional = createCard('com.acme:minimap', 'Minimap', { checked: true, enabled: true })
+    optionalContent.appendChild(optional.card)
+    const dropin = createCard('external.jar.disabled', 'External', { dropin: true })
+    dropinContent.appendChild(dropin.card)
+    const off = create('', { tagName: 'DIV' })
+    off.textContent = 'Off (Default)'
+    off.setAttribute('value', 'OFF')
+    off.setAttribute('selected', '')
+    const zip = create('', { tagName: 'DIV' })
+    zip.textContent = 'Cinematic'
+    zip.setAttribute('value', 'cinematic.zip')
+    off.onclick = () => { off.legacySelections = (off.legacySelections || 0) + 1 }
+    zip.onclick = () => { zip.legacySelections = (zip.legacySelections || 0) + 1 }
+    shaderSelected.onclick = () => {
+        shaderSelected.legacyClicks = (shaderSelected.legacyClicks || 0) + 1
+        shaderOptions.toggleAttribute('hidden')
+    }
+    shaderOptions.appendChild(off)
+    shaderOptions.appendChild(zip)
+
+    if(missingId != null){
+        const missing = elements.get(missingId)
+        if(missing?.parentNode != null){
+            missing.parentNode.children = missing.parentNode.children.filter(child => child !== missing)
+            missing.parentNode.childNodes = missing.parentNode.children
+        }
+        elements.delete(missingId)
+    }
+
+    const observers = []
+    class ModsMutationObserver {
+        constructor(callback){
+            this.callback = callback
+            this.observations = []
+            observers.push(this)
+        }
+
+        observe(target, options){ this.observations.push({ options, target }) }
+        disconnect(){ this.disconnected = true }
+    }
+    const documentListeners = new Map()
+    const windowListeners = new Map()
+    const document = {
+        activeElement: null,
+        hidden: false,
+        addEventListener(type, listener){ documentListeners.set(type, listener) },
+        removeEventListener(type){ documentListeners.delete(type) },
+        querySelector(selector){ return selector === '[data-squad-arcade-settings]' ? root : null }
+    }
+    ModsHarnessElement.prototype.focus = function(){
+        this.focusCalls++
+        document.activeElement = this
+    }
+    const frames = new Map()
+    let nextFrame = 1
+    const motionPreference = {
+        matches: reducedMotion,
+        addEventListener(_type, listener){ this.listener = listener },
+        removeEventListener(){ this.listener = null }
+    }
+    const window = {
+        addEventListener(type, listener){ windowListeners.set(type, listener) },
+        removeEventListener(type){ windowListeners.delete(type) },
+        cancelAnimationFrame(id){ frames.delete(id) },
+        matchMedia(){ return motionPreference },
+        requestAnimationFrame(callback){ const id = nextFrame++; frames.set(id, callback); return id }
+    }
+    const anime = createModsAnimeStub({ failAnimate: animeFails, supportsRevert: animeSupportsRevert })
+    const context = {
+        MutationObserver: ModsMutationObserver,
+        document,
+        require(name){
+            assert.equal(name, 'animejs')
+            if(!animeAvailable) throw new Error('Anime unavailable')
+            return anime.api
+        },
+        window
+    }
+    vm.runInNewContext(settingsModsVisualSource, context, { filename: 'squad-arcade-settings-mods.js' })
+    return {
+        anime,
+        document,
+        documentListeners,
+        doneButton,
+        dropButton,
+        dropin,
+        elements,
+        flushFrames(){
+            const queued = [...frames.values()]
+            frames.clear()
+            queued.forEach(callback => callback())
+        },
+        frames,
+        liveRegion,
+        motionPreference,
+        observers,
+        off,
+        optional,
+        optionalContent,
+        optionalSubmod,
+        required,
+        root,
+        shaderButton,
+        shaderOptions,
+        shaderSelected,
+        switchButton,
+        tab,
+        window,
+        windowListeners,
+        zip,
+        createCard
+    }
+}
+
+function renderObserverFor(harness){
+    return harness.observers.find(observer => observer.observations.some(observation => observation.options.childList))
+}
+
+function lifecycleObserverFor(harness){
+    return harness.observers.find(observer => observer.observations.some(observation => observation.options.attributeFilter?.includes('class')))
+}
+
+function assertModsMotionStylesClean(harness, message){
+    const targets = [...new Set(harness.anime.calls.animations.flatMap(call => call.targets))]
+    targets.forEach(target => {
+        assert.equal(target.style.opacity, '', `${message}: opacity`)
+        assert.equal(target.style.transform, '', `${message}: transform`)
+    })
+}
+
+function testModsAdapterInitialization(){
+    const valid = createModsAdapterHarness()
+    assert.equal(valid.tab.classList.contains('is-squad-mods-ready'), true)
+    assert.deepEqual(Object.keys(valid.window.squadArcadeSettingsMods), ['refresh', 'destroy'])
+    assert.equal(valid.observers.length, 2)
+    assert.equal(valid.liveRegion.textContent, 'Rack de equipamiento preparado.')
+    const listenerCounts = [valid.tab, valid.shaderSelected, valid.shaderOptions].map(element => [...element.listeners.values()].flat().length)
+    assert.equal(valid.window.squadArcadeSettingsMods.refresh(), true)
+    assert.deepEqual([valid.tab, valid.shaderSelected, valid.shaderOptions].map(element => [...element.listeners.values()].flat().length), listenerCounts)
+
+    const missing = createModsAdapterHarness({ missingId: 'settingsShadersOptions' })
+    assert.equal(missing.tab.classList.contains('is-squad-mods-ready'), false)
+    assert.equal(missing.observers.length, 0)
+    const legacy = createModsAdapterHarness({ serviceReady: false })
+    assert.equal(legacy.tab.classList.contains('is-squad-mods-ready'), false)
+    assert.equal(legacy.observers.length, 0)
+
+    const invalidated = createModsAdapterHarness()
+    invalidated.shaderOptions.parentNode.children = invalidated.shaderOptions.parentNode.children.filter(child => child !== invalidated.shaderOptions)
+    renderObserverFor(invalidated).callback([{ addedNodes: [], type: 'childList' }])
+    invalidated.flushFrames()
+    assert.equal(invalidated.tab.classList.contains('is-squad-mods-ready'), false, 'losing an essential node restores legacy fallback')
+}
+
+function testModsRequiredAndOptionalAccessibility(){
+    const harness = createModsAdapterHarness()
+    assert.equal(harness.tab.querySelectorAll('label[reqmod]').length, 1)
+    assert.equal(harness.required.input.checked, true)
+    assert.equal(harness.required.input.disabled, true)
+    assert.equal(harness.required.input.getAttribute('aria-disabled'), 'true')
+    assert.equal(harness.required.input.getAttribute('tabindex'), '-1')
+    assert.match(harness.required.input.getAttribute('aria-label'), /Core: REQUERIDO, Activado/)
+    let requiredChanges = 0
+    harness.required.input.onclick = () => { requiredChanges++ }
+    harness.required.input.click()
+    assert.equal(requiredChanges, 0)
+    assert.equal(harness.required.input.checked, true)
+    assert.equal(harness.required.input.hasAttribute('formod'), false, 'required parent receives no functional formod attribute')
+    assert.equal(harness.optional.input.disabled, false)
+    assert.equal(harness.optional.input.getAttribute('tabindex'), null)
+    assert.match(harness.optional.input.getAttribute('aria-label'), /Minimap: Activado/)
+    assert.equal(harness.optionalSubmod.input.disabled, false)
+    assert.match(harness.optionalSubmod.input.getAttribute('aria-label'), /Telemetry: Desactivado/)
+
+    const settingsModsContainer = {
+        querySelectorAll(selector){
+            const id = selector.match(/\[formod='([^']+)'\]/)?.[1]
+            return [harness.optional.input, harness.optionalSubmod.input].filter(input => input.getAttribute('formod') === id)
+        }
+    }
+    const sut = loadFunctions(settingsSource, ['_saveModConfiguration'], { settingsModsContainer })
+    const config = { 'com.acme:minimap': true, 'com.acme:telemetry': false }
+    assert.deepEqual(JSON.parse(JSON.stringify(sut._saveModConfiguration(config))), config)
+    assert.doesNotMatch(settingsModsVisualSource, /(?:setManagedAttribute|setAttribute)\([^\n]*['"]formod['"]|removeAttribute\(['"]formod/)
+    assert.doesNotMatch(settingsModsVisualSource, /\.checked\s*=(?!=)/, 'adapter never changes persisted checkbox state')
+}
+
+function testModsDropinAccessibility(){
+    const harness = createModsAdapterHarness()
+    assert.match(harness.dropin.input.getAttribute('aria-label'), /Archivo externo External: Desactivado/)
+    assert.match(harness.dropin.remove.getAttribute('aria-label'), /Eliminar External inmediatamente/)
+    assert.equal(harness.dropin.remove.getAttribute('remmod'), 'external.jar.disabled')
+    harness.dropin.remove.click()
+    assert.equal(harness.dropin.remove.legacyRemovals, 1, 'immediate legacy removal handler remains intact')
+    assert.match(harness.dropButton.getAttribute('aria-label'), /Abrir carpeta.*acepta archivos arrastrados/)
+    assert.equal(harness.dropButton.getAttribute('aria-describedby'), 'settingsDropinRefreshNote')
+}
+
+function testModsShaderAccessibility(){
+    const harness = createModsAdapterHarness()
+    assert.equal(harness.shaderSelected.getAttribute('role'), 'combobox')
+    assert.equal(harness.shaderSelected.getAttribute('aria-haspopup'), 'listbox')
+    assert.equal(harness.shaderOptions.getAttribute('role'), 'listbox')
+    assert.equal(harness.off.getAttribute('role'), 'option')
+    assert.equal(harness.off.getAttribute('value'), 'OFF')
+    assert.equal(harness.off.getAttribute('aria-selected'), 'true')
+    assert.equal(harness.off.getAttribute('aria-label'), 'Shaders desactivados')
+    const open = harness.shaderSelected.dispatch('keydown', { key: 'ArrowDown' })
+    assert.equal(open.defaultPrevented, true)
+    assert.equal(harness.shaderSelected.legacyClicks, 1, 'combobox keyboard delegates to legacy click')
+    assert.equal(harness.off.focusCalls, 1)
+    const select = harness.zip.dispatch('keydown', { key: 'Enter' })
+    assert.equal(select.defaultPrevented, true)
+    assert.equal(harness.zip.legacySelections, 1, 'option keyboard delegates to legacy click')
+    assert.equal(harness.off.getAttribute('value'), 'OFF', 'OFF value remains untouched')
+}
+
+function testModsAdapterBoundaries(){
+    const requiredModules = [...settingsModsVisualSource.matchAll(/require\(['"]([^'"]+)['"]\)/g)].map(match => match[1])
+    assert.deepEqual(requiredModules, ['animejs'])
+    assert.doesNotMatch(settingsModsVisualSource, /prepareModsTab|reloadDropinMods|saveModConfiguration|saveDropinModConfiguration|saveShaderpackSettings/)
+    assert.doesNotMatch(settingsModsVisualSource, /showOpenDialog|showMessageBox|confirm\s*\(|\bfetch\s*\(|XMLHttpRequest|ipcRenderer|\bshell\b|\bfs\b|ConfigManager|ProcessBuilder/)
+    assert.doesNotMatch(settingsModsVisualSource, /removeAttribute\(['"](?:formod|dropin|remmod|reqmod|enabled|value|selected)['"]\)/)
+    assert.match(settingsMarkup, /squad-arcade-settings\.js"><\/script>\s*<script src="\.\/assets\/js\/scripts\/squad-arcade-settings-mods\.js"><\/script>/)
+}
+
+function testModsMutationBatching(){
+    const harness = createModsAdapterHarness()
+    harness.anime.calls.animations[0].animation.complete()
+    const newRow = harness.createCard('com.acme:new', 'New Mod', { checked: true, enabled: true })
+    harness.optionalContent.appendChild(newRow.card)
+    const observer = renderObserverFor(harness)
+    const mutation = { addedNodes: [newRow.card], type: 'childList' }
+    observer.callback([mutation])
+    observer.callback([mutation])
+    observer.callback([{ addedNodes: [], type: 'attributes' }])
+    assert.equal(harness.frames.size, 1, 'mutation bursts schedule one frame')
+    harness.flushFrames()
+    assert.equal(harness.anime.calls.animations.length, 2)
+    assert.deepEqual(harness.anime.calls.animations[1].targets, [newRow.card])
+    observer.callback([{ addedNodes: [], type: 'attributes' }])
+    harness.flushFrames()
+    assert.equal(harness.anime.calls.animations.length, 2, 'idempotent enhancement never reanimates existing rows')
+    assert.equal(harness.shaderSelected.listeners.get('keydown').length, 1)
+    assert.equal(harness.shaderOptions.listeners.get('keydown').length, 1)
+}
+
+function testModsMotionFallbacksAndDrag(){
+    const animated = createModsAdapterHarness()
+    assert.equal(animated.anime.calls.animations.length, 1)
+    assert.equal(animated.anime.calls.animations[0].parameters.duration, 190)
+    assert.equal(animated.anime.calls.animations[0].parameters.loop, undefined)
+    assert.deepEqual(Object.keys(animated.anime.calls.animations[0].parameters).filter(key => ['opacity', 'y'].includes(key)), ['opacity', 'y'])
+
+    const absent = createModsAdapterHarness({ animeAvailable: false })
+    assert.equal(absent.tab.classList.contains('is-squad-mods-ready'), true)
+    assert.equal(absent.anime.calls.animations.length, 0)
+    const reduced = createModsAdapterHarness({ reducedMotion: true })
+    assert.equal(reduced.tab.classList.contains('is-squad-mods-ready'), true)
+    assert.equal(reduced.anime.calls.animations.length, 0)
+    const failed = createModsAdapterHarness({ animeFails: true })
+    assert.equal(failed.tab.classList.contains('is-squad-mods-ready'), true)
+    assertModsMotionStylesClean(failed, 'failed Anime initialization')
+
+    const deferred = createModsAdapterHarness({ modsVisible: false })
+    assert.equal(deferred.anime.calls.animations.length, 0)
+    deferred.tab.style.display = 'flex'
+    deferred.tab.setAttribute('aria-hidden', 'false')
+    lifecycleObserverFor(deferred).callback([{ target: deferred.tab }])
+    deferred.flushFrames()
+    assert.equal(deferred.anime.calls.animations.length, 1, 'rows rendered while hidden enter once when Mods opens')
+
+    const interaction = createModsAdapterHarness()
+    interaction.tab.dispatch('change', { target: interaction.optional.input })
+    interaction.tab.dispatch('input', { target: interaction.optional.input })
+    interaction.tab.dispatch('scroll')
+    interaction.doneButton.click()
+    assert.equal(interaction.anime.calls.reverted, 1)
+    assert.equal(interaction.anime.calls.animations.length, 1, 'input, change, scroll, and save never create motion')
+
+    const dragging = createModsAdapterHarness()
+    dragging.dropButton.dispatch('dragenter')
+    const row = dragging.createCard('com.acme:drop', 'Dropped Mod')
+    dragging.optionalContent.appendChild(row.card)
+    renderObserverFor(dragging).callback([{ addedNodes: [row.card], type: 'childList' }])
+    dragging.dropButton.dispatch('drop')
+    dragging.flushFrames()
+    assert.equal(dragging.anime.calls.animations.length, 1, 'drop-triggered rerender is not animated')
+    renderObserverFor(dragging).callback([{ addedNodes: [row.card], type: 'childList' }])
+    dragging.flushFrames()
+    assert.equal(dragging.anime.calls.animations.length, 1, 'dropped rows never animate in a later batch')
+}
+
+function testModsMotionLifecycle(){
+    const rerender = createModsAdapterHarness()
+    const row = rerender.createCard('com.acme:rerender', 'Rerendered Mod')
+    rerender.optionalContent.appendChild(row.card)
+    renderObserverFor(rerender).callback([{ addedNodes: [row.card], type: 'childList' }])
+    rerender.flushFrames()
+    assert.equal(rerender.anime.calls.reverted, 1, 'rerender reverts active entrance before replacement')
+    assertModsMotionStylesClean({ anime: { calls: { animations: [rerender.anime.calls.animations[0]] } } }, 'replaced entrance')
+
+    const blurred = createModsAdapterHarness()
+    blurred.windowListeners.get('blur')()
+    assert.equal(blurred.anime.calls.reverted, 1)
+    assertModsMotionStylesClean(blurred, 'blur cleanup')
+    const hidden = createModsAdapterHarness()
+    hidden.document.hidden = true
+    hidden.documentListeners.get('visibilitychange')()
+    assert.equal(hidden.anime.calls.reverted, 1)
+    assertModsMotionStylesClean(hidden, 'hidden cleanup')
+    const reduced = createModsAdapterHarness()
+    reduced.motionPreference.listener({ matches: true })
+    assert.equal(reduced.anime.calls.reverted, 1)
+    assertModsMotionStylesClean(reduced, 'reduced-motion cleanup')
+    const cancelled = createModsAdapterHarness({ animeSupportsRevert: false })
+    cancelled.windowListeners.get('blur')()
+    assert.equal(cancelled.anime.calls.cancelled, 1)
+    assertModsMotionStylesClean(cancelled, 'cancel fallback cleanup')
+
+    const exited = createModsAdapterHarness()
+    exited.tab.setAttribute('aria-hidden', 'true')
+    lifecycleObserverFor(exited).callback([{ target: exited.tab }])
+    assert.equal(exited.anime.calls.reverted, 1, 'leaving the Mods tab reverts motion')
+    const destroyed = createModsAdapterHarness()
+    destroyed.window.squadArcadeSettingsMods.destroy()
+    destroyed.window.squadArcadeSettingsMods.destroy()
+    assert.equal(destroyed.tab.classList.contains('is-squad-mods-ready'), false)
+    assert.equal(destroyed.required.input.disabled, false)
+    assert.equal(destroyed.required.input.getAttribute('aria-disabled'), null)
+    assert.equal(destroyed.observers.every(observer => observer.disconnected), true)
+    assert.equal(destroyed.windowListeners.size, 0)
+    assert.equal(destroyed.documentListeners.size, 0)
+    assertModsMotionStylesClean(destroyed, 'destroy cleanup')
+}
+
+function testRecursiveModRendering(){
+    const modules = createModFixture()
+    const configuration = currentModConfiguration(modules)
+    const sut = loadFunctions(settingsSource, ['parseModulesForUI'], {
+        Type: { FabricMod: 'fabric', ForgeMod: 'forge', LiteLoader: 'liteloader', LiteMod: 'litemod' }
+    })
+    const rendered = sut.parseModulesForUI(modules, false, configuration.mods)
+
+    assert.match(rendered.reqMods, /id="com\.acme:core" class="settingsBaseMod settingsMod" enabled/)
+    assert.match(rendered.reqMods, /id="com\.acme:core-api" class="settingsBaseMod settingsSubMod" enabled/)
+    assert.match(rendered.reqMods, /<label class="toggleSwitch" reqmod>/)
+    assert.match(rendered.reqMods, /id="com\.acme:telemetry" class="settingsBaseMod settingsSubMod" >/)
+    assert.match(rendered.optMods, /id="com\.acme:minimap" class="settingsBaseMod settingsMod" enabled/)
+    assert.match(rendered.optMods, /formod="com\.acme:waypoints" checked/)
+    assert.match(rendered.optMods, /id="com\.acme:voice" class="settingsBaseMod settingsMod" >/)
+    assert.match(`${rendered.reqMods}${rendered.optMods}`, /class="settingsSubModContainer"/)
+    assert.doesNotMatch(`${rendered.reqMods}${rendered.optMods}`, /id="[^"\r\n]+:[^"\r\n]+:[0-9]/, 'rendered IDs remain versionless')
+}
+
+function testCurrentModConfiguration(){
+    const configuration = currentModConfiguration(createModFixture())
+    assert.deepEqual(configuration, {
+        mods: {
+            'com.acme:core': { mods: { 'com.acme:telemetry': false } },
+            'com.acme:minimap': { mods: { 'com.acme:waypoints': true }, value: true },
+            'com.acme:voice': false
+        }
+    })
+    assert.match(extractFunction(settingsSource, '_saveModConfiguration'), /tSwitch\[0\]\.hasAttribute\('dropin'\)/, 'required parents with optional submods remain coupled to a missing formod switch')
+}
+
+function testModConfigurationRoundTrip(){
+    const configuration = {
+        'com.acme:minimap': { mods: { 'com.acme:waypoints': true }, value: true },
+        'com.acme:voice': false
+    }
+    const switches = new Map([
+        ['com.acme:telemetry', false],
+        ['com.acme:minimap', true],
+        ['com.acme:waypoints', true],
+        ['com.acme:voice', false]
+    ].map(([id, checked]) => {
+        const element = new FakeElement({ tagName: 'INPUT', type: 'checkbox' })
+        element.checked = checked
+        element.setAttribute('formod', id)
+        return [id, element]
+    }))
+    const selectors = []
+    const settingsModsContainer = {
+        querySelectorAll(selector){
+            selectors.push(selector)
+            const id = selector.match(/\[formod='([^']+)'\]/)?.[1]
+            return id != null && switches.has(id) ? [switches.get(id)] : []
+        }
+    }
+    const sut = loadFunctions(settingsSource, ['_saveModConfiguration'], { settingsModsContainer })
+    const saved = JSON.parse(JSON.stringify(sut._saveModConfiguration(configuration)))
+
+    assert.deepEqual(saved, {
+        'com.acme:minimap': { mods: { 'com.acme:waypoints': true }, value: true },
+        'com.acme:voice': false
+    })
+    assert.equal(typeof saved['com.acme:voice'], 'boolean')
+    assert.equal(typeof saved['com.acme:minimap'], 'object')
+    assert.equal(typeof saved['com.acme:minimap'].value, 'boolean')
+    assert.equal(typeof saved['com.acme:minimap'].mods, 'object')
+    assert.equal(selectors.every(selector => !/:\d/.test(selector)), true, 'save queries versionless IDs')
+}
+
+async function testPrepareModsTabOrder(){
+    const calls = []
+    const asyncStub = name => async () => { calls.push(name) }
+    const syncStub = name => () => { calls.push(name) }
+    const sut = loadFunctions(settingsSource, ['prepareModsTab'], {
+        resolveModsForUI: asyncStub('mods'),
+        resolveDropinModsForUI: asyncStub('drop-ins'),
+        resolveShaderpacksForUI: asyncStub('shaders'),
+        bindDropinModsRemoveButton: syncStub('bind-remove'),
+        bindDropinModFileSystemButton: syncStub('bind-folder'),
+        bindShaderpackButton: syncStub('bind-shaders'),
+        bindModsToggleSwitch: syncStub('bind-toggles'),
+        loadSelectedServerOnModsTab: asyncStub('server')
+    })
+    await sut.prepareModsTab()
+    assert.deepEqual(calls, ['mods', 'drop-ins', 'shaders', 'bind-remove', 'bind-folder', 'bind-shaders', 'bind-toggles', 'server'])
+}
+
+function testDropinScanContract(){
+    const modsDir = path.join('C:', 'instances', 'alpha', 'mods')
+    const versionDir = path.join(modsDir, '1.20.1')
+    const directories = new Map([
+        [modsDir, ['root.jar', 'archive.zip.disabled', 'legacy.litemod', 'upper.JAR', 'wrong.jar.DISABLED', 'notes.txt', '1.20.1']],
+        [versionDir, ['versioned.jar.disabled', 'pack.zip', 'ignored.dll']]
+    ])
+    const util = loadDropinModUtil({
+        existsSync: file => directories.has(file),
+        readdirSync: file => directories.get(file),
+        ensureDirSync(){ throw new Error('Unexpected filesystem write') }
+    })
+    const found = JSON.parse(JSON.stringify(util.scanForDropinMods(modsDir, '1.20.1')))
+    assert.deepEqual(found, [
+        { disabled: false, ext: 'jar', fullName: 'root.jar', name: 'root.jar' },
+        { disabled: true, ext: 'zip', fullName: 'archive.zip.disabled', name: 'archive.zip' },
+        { disabled: false, ext: 'litemod', fullName: 'legacy.litemod', name: 'legacy.litemod' },
+        { disabled: true, ext: 'jar', fullName: path.join('1.20.1', 'versioned.jar.disabled'), name: 'versioned.jar' },
+        { disabled: false, ext: 'zip', fullName: path.join('1.20.1', 'pack.zip'), name: 'pack.zip' }
+    ])
+}
+
+async function testDropinToggleAndSave(){
+    const renames = []
+    const util = loadDropinModUtil({
+        rename(from, to, callback){ renames.push([from, to]); callback(null) }
+    })
+    const enabledCard = new FakeElement({ id: 'enabled.jar' })
+    enabledCard.setAttribute('enabled', '')
+    const disabledCard = new FakeElement({ id: 'disabled.jar.disabled' })
+    const enabledToggle = new FakeElement({ tagName: 'INPUT', type: 'checkbox' })
+    enabledToggle.checked = false
+    enabledToggle.setAttribute('formod', 'enabled.jar')
+    const disabledToggle = new FakeElement({ tagName: 'INPUT', type: 'checkbox' })
+    disabledToggle.checked = true
+    disabledToggle.setAttribute('formod', 'disabled.jar.disabled')
+    const cards = new Map([[enabledCard.id, enabledCard], [disabledCard.id, disabledCard]])
+    const settingsModsContainer = {
+        querySelectorAll(selector){ return selector === '[formod]' ? [enabledToggle, disabledToggle] : [] }
+    }
+    const document = { getElementById: id => cards.get(id) || null }
+    const prelude = `const CACHE_SETTINGS_MODS_DIR = ${JSON.stringify(path.join('C:', 'mods'))}; const CACHE_DROPIN_MODS = [{ fullName: 'enabled.jar' }, { fullName: 'disabled.jar.disabled' }]`
+    const sut = loadFunctions(settingsSource, ['bindModsToggleSwitch', 'saveDropinModConfiguration'], {
+        document,
+        DropinModUtil: util,
+        isOverlayVisible(){ return false },
+        Lang: blockedBoundary('language overlay'),
+        setOverlayContent(){ throw new Error('Unexpected overlay') },
+        setOverlayHandler(){ throw new Error('Unexpected overlay') },
+        settingsModsContainer,
+        toggleOverlay(){ throw new Error('Unexpected overlay') }
+    }, prelude)
+
+    sut.bindModsToggleSwitch()
+    enabledToggle.onchange()
+    disabledToggle.onchange()
+    assert.equal(enabledCard.hasAttribute('enabled'), false)
+    assert.equal(disabledCard.hasAttribute('enabled'), true)
+    sut.saveDropinModConfiguration()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.deepEqual(renames, [
+        [path.join('C:', 'mods', 'enabled.jar'), path.join('C:', 'mods', 'enabled.jar.disabled')],
+        [path.join('C:', 'mods', 'disabled.jar.disabled'), path.join('C:', 'mods', 'disabled.jar')]
+    ])
+}
+
+async function testDropinFolderAndDragContract(){
+    const button = new FakeElement({ id: 'settingsDropinFileSystemButton', tagName: 'BUTTON' })
+    const calls = []
+    const document = { getElementById: id => id === button.id ? button : null }
+    const sut = loadFunctions(settingsSource, ['bindDropinModFileSystemButton', 'reloadDropinMods'], {
+        bindDropinModsRemoveButton(){ calls.push('bind-remove') },
+        bindDropinModFileSystemButton(){ calls.push('bind-folder') },
+        bindModsToggleSwitch(){ calls.push('bind-toggles') },
+        document,
+        DropinModUtil: {
+            addDropinMods(files, dir){ calls.push(['add', [...files], dir]) },
+            validateDir(dir){ calls.push(['validate', dir]) }
+        },
+        resolveDropinModsForUI: async () => { calls.push('resolve') },
+        shell: { openPath(dir){ calls.push(['openPath', dir]) } }
+    }, `const CACHE_SETTINGS_MODS_DIR = ${JSON.stringify(path.join('C:', 'mods'))}`)
+
+    sut.bindDropinModFileSystemButton()
+    button.onclick()
+    const dragEnter = { dataTransfer: {}, preventDefault(){ this.prevented = true } }
+    button.ondragenter(dragEnter)
+    assert.equal(button.hasAttribute('drag'), true)
+    assert.equal(dragEnter.dataTransfer.dropEffect, 'move')
+    assert.equal(dragEnter.prevented, true)
+    button.ondragleave({})
+    assert.equal(button.hasAttribute('drag'), false)
+    const initialClickHandler = button.onclick
+    const drop = { dataTransfer: { files: [{ name: 'new.jar' }] }, preventDefault(){ this.prevented = true } }
+    await button.ondrop(drop)
+    assert.equal(drop.prevented, true)
+    assert.equal(button.hasAttribute('drag'), false)
+    assert.notEqual(button.onclick, initialClickHandler, 'reload rebinds the existing folder button')
+    assert.deepEqual(calls, [
+        ['validate', path.join('C:', 'mods')],
+        ['openPath', path.join('C:', 'mods')],
+        ['add', [{ name: 'new.jar' }], path.join('C:', 'mods')],
+        'resolve',
+        'bind-remove',
+        'bind-toggles'
+    ])
+    assert.doesNotMatch(extractFunction(settingsSource, 'bindDropinModFileSystemButton'), /showOpenDialog|dialog\.|file.?picker/i)
+}
+
+async function testImmediateTrashContract(){
+    const invocations = []
+    const errors = []
+    let beeped = 0
+    const responses = [
+        { result: true },
+        { error: 'locked', result: false }
+    ]
+    const util = loadDropinModUtil({}, {
+        ipcRenderer: { invoke(...args){ invocations.push(args); return Promise.resolve(responses.shift()) } },
+        shell: { beep(){ beeped++ } }
+    }, { error(...args){ errors.push(args) }, warn(){}, log(){} })
+    assert.equal(await util.deleteDropinMod(path.join('C:', 'mods'), 'ok.jar'), true)
+    assert.equal(await util.deleteDropinMod(path.join('C:', 'mods'), 'bad.jar'), false)
+    assert.deepEqual(invocations, [
+        ['trash-item', path.join('C:', 'mods', 'ok.jar')],
+        ['trash-item', path.join('C:', 'mods', 'bad.jar')]
+    ])
+    assert.equal(beeped, 1)
+    assert.deepEqual(errors, [['Error deleting drop-in mod.', 'locked']])
+
+    const removeButton = new FakeElement({ tagName: 'BUTTON' })
+    removeButton.setAttribute('remmod', 'ok.jar')
+    const card = new FakeElement({ id: 'ok.jar' })
+    const overlay = []
+    const document = { getElementById: id => id === card.id ? card : null }
+    const settingsModsContainer = { querySelectorAll: selector => selector === '[remmod]' ? [removeButton] : [] }
+    const sut = loadFunctions(settingsSource, ['bindDropinModsRemoveButton'], {
+        document,
+        DropinModUtil: { deleteDropinMod: async () => true },
+        Lang: blockedBoundary('language'),
+        setOverlayContent(){ overlay.push('content') },
+        setOverlayHandler(){ overlay.push('handler') },
+        settingsModsContainer,
+        toggleOverlay(){ overlay.push('toggle') }
+    }, `const CACHE_SETTINGS_MODS_DIR = ${JSON.stringify(path.join('C:', 'mods'))}`)
+    sut.bindDropinModsRemoveButton()
+    await removeButton.onclick()
+    assert.equal(card.removed, true)
+    assert.deepEqual(overlay, [])
+    assert.doesNotMatch(extractFunction(settingsSource, 'bindDropinModsRemoveButton'), /confirm|showMessageBox/i)
+
+    const failedButton = new FakeElement({ tagName: 'BUTTON' })
+    failedButton.setAttribute('remmod', 'bad.jar')
+    settingsModsContainer.querySelectorAll = () => [failedButton]
+    const failed = loadFunctions(settingsSource, ['bindDropinModsRemoveButton'], {
+        document,
+        DropinModUtil: { deleteDropinMod: async () => false },
+        Lang: { queryJS(key){ return key } },
+        setOverlayContent(){ overlay.push('content') },
+        setOverlayHandler(){ overlay.push('handler') },
+        settingsModsContainer,
+        toggleOverlay(){ overlay.push('toggle') }
+    }, `const CACHE_SETTINGS_MODS_DIR = ${JSON.stringify(path.join('C:', 'mods'))}`)
+    failed.bindDropinModsRemoveButton()
+    await failedButton.onclick()
+    assert.deepEqual(overlay, ['content', 'handler', 'toggle'])
+}
+
+function testShaderpackFilesystemContract(){
+    const instanceDir = path.join('C:', 'instances', 'alpha')
+    const shaderDir = path.join(instanceDir, 'shaderpacks')
+    const optionsFile = path.join(instanceDir, 'optionsshaders.txt')
+    const files = new Map([[shaderDir, ['cinematic.zip', 'folder', 'UPPER.ZIP']]])
+    const writes = []
+    const fsStub = {
+        ensureDirSync(){},
+        existsSync(file){ return files.has(file) },
+        readFileSync(file){ return files.get(file) },
+        readdirSync(file){ return files.get(file) },
+        writeFileSync(file, value, options){ writes.push([file, value, options]); files.set(file, value) }
+    }
+    const util = loadDropinModUtil(fsStub)
+    assert.deepEqual(JSON.parse(JSON.stringify(util.scanForShaderpacks(instanceDir))), [
+        { fullName: 'OFF', name: 'Off (Default)' },
+        { fullName: 'cinematic.zip', name: 'cinematic' }
+    ])
+    assert.equal(util.getEnabledShaderpack(instanceDir), 'OFF')
+    files.set(optionsFile, 'quality=high\nshaderPack=cinematic.zip\nshadow=true')
+    assert.equal(util.getEnabledShaderpack(instanceDir), 'cinematic.zip')
+    files.set(optionsFile, 'shaderPack=missing.zip')
+    assert.equal(util.getEnabledShaderpack(instanceDir), 'missing.zip', 'missing selected ZIP is preserved without validating the pack list')
+    util.setEnabledShaderpack(instanceDir, 'OFF')
+    assert.equal(writes.at(-1)[1], 'shaderPack=OFF')
+    files.delete(optionsFile)
+    util.setEnabledShaderpack(instanceDir, 'cinematic.zip')
+    assert.deepEqual(JSON.parse(JSON.stringify(writes.at(-1))), [optionsFile, 'shaderPack=cinematic.zip', { encoding: 'utf-8' }])
+}
+
+async function testServerCachesAndConcurrentRefresh(){
+    let selectedServer = 'alpha'
+    const content = new FakeElement({ id: 'settingsDropinModsContent' })
+    const scans = []
+    const document = { getElementById: id => id === content.id ? content : null }
+    const distribution = {
+        getServerById(id){ return { rawServer: { id, minecraftVersion: id === 'alpha' ? '1.20.1' : '1.21.0' } } }
+    }
+    const prelude = 'let CACHE_SETTINGS_MODS_DIR; let CACHE_DROPIN_MODS; globalThis.readCache = () => ({ dir: CACHE_SETTINGS_MODS_DIR, mods: CACHE_DROPIN_MODS })'
+    const cacheSut = loadFunctions(settingsSource, ['resolveDropinModsForUI'], {
+        ConfigManager: {
+            getInstanceDirectory(){ return path.join('C:', 'instances') },
+            getSelectedServer(){ return selectedServer }
+        },
+        DistroAPI: { async getDistribution(){ return distribution } },
+        document,
+        DropinModUtil: {
+            scanForDropinMods(dir, version){ scans.push([dir, version]); return [{ disabled: false, fullName: `${selectedServer}.jar`, name: selectedServer }] }
+        },
+        Lang: { queryJS(){ return 'Remove' } },
+        path
+    }, prelude)
+    await cacheSut.resolveDropinModsForUI()
+    selectedServer = 'beta'
+    await cacheSut.resolveDropinModsForUI()
+    assert.deepEqual(scans, [
+        [path.join('C:', 'instances', 'alpha', 'mods'), '1.20.1'],
+        [path.join('C:', 'instances', 'beta', 'mods'), '1.21.0']
+    ])
+    assert.equal(cacheSut.context.readCache().dir, path.join('C:', 'instances', 'beta', 'mods'), 'module cache is last-refresh-wins')
+
+    let prepareCalls = 0
+    let fadeInCalls = 0
+    const refreshSut = loadFunctions(settingsSource, ['animateSettingsTabRefresh'], {
+        $(){
+            return {
+                fadeOut(_duration, callback){ callback() },
+                fadeIn(){ fadeInCalls++ }
+            }
+        },
+        async prepareSettings(){ prepareCalls++ }
+    }, 'const selectedSettingsTab = \'settingsTabMods\'')
+    refreshSut.animateSettingsTabRefresh()
+    refreshSut.animateSettingsTabRefresh()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(prepareCalls, 2, 'concurrent refreshes are not deduplicated')
+    assert.equal(fadeInCalls, 2)
+}
+
+function testProcessBuilderModContract(){
+    const buildContract = extractFunction(processBuilderSource.replace('    build()', 'function build()'), 'build')
+    const saveContract = extractFunction(settingsSource, '_saveModConfiguration')
+    assert.match(buildContract, /getModConfiguration\(this\.server\.rawServer\.id\)\.mods/)
+    assert.match(buildContract, /resolveModConfiguration\([^,]+, this\.server\.modules\)/)
+    assert.match(processBuilderSource, /static isModEnabled\(modCfg, required = null\)\{\s*return modCfg != null \? \(\(typeof modCfg === 'boolean'/)
+    assert.match(processBuilderSource, /typeof modCfg === 'object' && \(typeof modCfg\.value !== 'undefined' \? modCfg\.value : true\)/)
+    assert.match(processBuilderSource, /modCfg\[mdl\.getVersionlessMavenIdentifier\(\)\]/)
+    assert.match(saveContract, /typeof m\[1\] === 'boolean'/)
+    assert.match(saveContract, /modConf\[m\[0\]\]\.value/)
+    assert.match(saveContract, /modConf\[m\[0\]\]\.mods/)
+}
+
+function testModsIsolationBoundaries(){
+    const guardedFs = blockedBoundary('filesystem')
+    assert.throws(() => loadDropinModUtil(guardedFs).scanForDropinMods('mods', '1.20.1'), /Unexpected filesystem access/)
+    assert.throws(() => loadDropinModUtil({}, blockedBoundary('Electron')), /Unexpected Electron access/)
+    const dropinRequires = [...dropinModUtilSource.matchAll(/require\('([^']+)'\)/g)].map(match => match[1])
+    assert.deepEqual(dropinRequires, ['fs-extra', 'path', 'electron', './ipcconstants'])
+    assert.doesNotMatch(extractFunction(settingsSource, 'bindDropinModFileSystemButton'), /require\s*\(|fetch\s*\(|ipcRenderer/)
+    assert.doesNotMatch(extractFunction(settingsSource, 'bindDropinModsRemoveButton'), /require\s*\(|fetch\s*\(|shell\./)
 }
 
 function createSettingsAnimeStub({ supportsRevert = true, failAnimate = false } = {}){
@@ -1215,6 +2338,31 @@ async function run(){
     await scenario('motion remains separated from legacy Settings', testMotionLayerSeparation)
     await scenario('visual assets are ordered and ready-namespaced', testVisualAssetContract)
     await scenario('Mods DOM and header-first scrolling remain intact', testModsAndScrollContracts)
+    await scenario('Mods exposes the 16-ID contractual snapshot', testModsContractSnapshot)
+    await scenario('equipment rack hooks preserve the Mods DOM contract', testEquipmentRackMarkupContract)
+    await scenario('equipment rack stylesheet loads after Service Bay and stays namespaced', testEquipmentRackStylesheetContract)
+    await scenario('equipment rack keeps responsive columns, transparency, and one scroll owner', testEquipmentRackLayoutContract)
+    await scenario('equipment rack preserves legacy controls and adds no capabilities', testEquipmentRackInteractionBoundaries)
+    await scenario('Mods adapter initializes idempotently and fails back on incomplete shells', testModsAdapterInitialization)
+    await scenario('required locks preserve checked state while optional controls stay interactive', testModsRequiredAndOptionalAccessibility)
+    await scenario('drop-in accessibility preserves disabled state and immediate removal', testModsDropinAccessibility)
+    await scenario('shader ARIA and keyboard delegate to legacy click with OFF intact', testModsShaderAccessibility)
+    await scenario('Mods adapter has no persistence or external side effects', testModsAdapterBoundaries)
+    await scenario('Mods mutation bursts batch without listener or animation accumulation', testModsMutationBatching)
+    await scenario('Mods motion is finite and respects absence, reduced motion, and drag', testModsMotionFallbacksAndDrag)
+    await scenario('Mods motion rerender and lifecycle cleanup leave no inline styles', testModsMotionLifecycle)
+    await scenario('required, optional, and nested distro modules render recursively', testRecursiveModRendering)
+    await scenario('required defaults and submods generate the current configuration', testCurrentModConfiguration)
+    await scenario('mod configuration round-trip preserves shapes and versionless IDs', testModConfigurationRoundTrip)
+    await scenario('prepareModsTab keeps the exact resolve and bind order', testPrepareModsTabOrder)
+    await scenario('drop-in scan covers root, version folder, extensions, and disabled case', testDropinScanContract)
+    await scenario('drop-in toggles mirror enabled and save through rename stubs', testDropinToggleAndSave)
+    await scenario('drop-in folder click, drag lifecycle, reload, and rebind remain intact', testDropinFolderAndDragContract)
+    await scenario('drop-in trash IPC remains immediate with success and error behavior', testImmediateTrashContract)
+    await scenario('shader OFF, selected, missing, read, and write behavior remains intact', testShaderpackFilesystemContract)
+    await scenario('server caches are last-refresh-wins and concurrent refreshes persist', testServerCachesAndConcurrentRefresh)
+    await scenario('ProcessBuilder consumes boolean and object mod configuration shapes', testProcessBuilderModContract)
+    await scenario('Mods side effects remain isolated behind fail-closed stubs', testModsIsolationBoundaries)
     await scenario('visual shell activates only after complete validation', testVisualControllerReadiness)
     await scenario('four themes, invalid fallback, and open refresh', testVisualThemesAndRefresh)
     await scenario('visual controller has no behavioral side effects', testVisualControllerBoundaries)
