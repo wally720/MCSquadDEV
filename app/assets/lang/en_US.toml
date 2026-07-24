@@ -5,18 +5,14 @@ usernameEditButton = "Editar"
 settingsTooltip = "Configuración"
 serverStatus = "SERVIDOR"
 serverStatusPlaceholder = "DESCONECTADO"
-mojangStatus = "ESTADO DE MOJANG"
-mojangStatusTooltipTitle = "Servicios"
-mojangStatusNETitle = "No Esencial"
-newsButton = "NOTICIAS"
 launchButton = "JUGAR"
 launchButtonPlaceholder = "• No hay servidor seleccionado"
 launchDetails = "Por favor espera..."
-newsNavigationStatus = "{currentPage} de {totalPages}"
-newsErrorLoadSpan = "Comprobando noticias..."
-newsErrorFailedSpan = "Error al cargar noticias"
-newsErrorRetryButton = "Intentar de nuevo"
-newsErrorNoneSpan = "Sin noticias"
+
+[ejs.startup]
+kicker = "SISTEMA SQUAD ARCADE"
+title = "Preparando launcher"
+detail = "Cargando recursos locales"
 
 [ejs.login]
 loginCancelText = "Cancelar"
@@ -207,9 +203,6 @@ launchingGame = "Iniciando el juego..."
 launchWrapperNotDownloaded = "El archivo principal, LaunchWrapper, no se descargó correctamente. Como resultado, el juego no puede iniciarse.<br><br>Para solucionar este problema, desactiva temporalmente tu software antivirus y vuelve a iniciar el juego.<br><br>Si tienes tiempo, por favor <a href=\"https://github.com/dscalzi/HeliosLauncher/issues\">envía un problema</a> y háznos saber qué software antivirus usas. Nos pondremos en contacto con ellos e intentaremos resolverlo."
 doneEnjoyServer = "Hecho. ¡Disfruta del servidor!"
 checkConsoleForDetails = "Consulta la consola (CTRL + Shift + i) para más detalles."
-
-[js.landing.news]
-checking = "Comprobando noticias"
 
 [js.landing.discord]
 loading = "Cargando el juego..."

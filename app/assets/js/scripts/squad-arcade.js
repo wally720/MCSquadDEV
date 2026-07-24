@@ -2,8 +2,7 @@
     'use strict'
 
     const root = document.querySelector('[data-squad-arcade]')
-    const legacyLanding = ['upper', 'lower', 'newsContainer'].map(id => document.getElementById(id))
-    if(root == null || legacyLanding.some(element => element == null)){
+    if(root == null){
         return
     }
     const landing = root.parentElement
@@ -18,6 +17,7 @@
     const activeAnimations = new Map()
     let reducedMotion = motionPreference.matches
     let currentServerId = null
+    let launchEnabled = false
     let attractionTimeout = null
     let lastProgressSweep = -10
 
@@ -210,13 +210,6 @@
         }
     }
 
-    function setLegacyHidden(hidden){
-        landing.classList.toggle('is-squad-arcade-ready', hidden)
-        legacyLanding.forEach(element => {
-            element.hidden = hidden
-        })
-    }
-
     function syncThemeControls(theme){
         getAll('[data-sa-theme]').forEach(option => {
             option.setAttribute('aria-checked', String(option.dataset.saTheme === theme))
@@ -266,7 +259,9 @@
             icon.src = rawServer?.icon || 'assets/images/SealCircle.png'
             icon.alt = rawServer?.name ? `Icono de ${rawServer.name}` : ''
         }
-        setEnabled(server != null)
+        if(typeof window.getLaunchState !== 'function'){
+            setEnabled(server != null)
+        }
         currentServerId = nextServerId
         if(changed){
             runServerSwap()
@@ -295,12 +290,17 @@
     }
 
     function setEnabled(enabled){
-        playButton.disabled = !enabled
-        if(!enabled){
+        launchEnabled = enabled
+        const available = launchEnabled && !root.hasAttribute('data-launching')
+        playButton.disabled = !available
+        if(!launchEnabled){
             playReadyDetail.textContent = 'Esperando servidor'
-            clearAttractionCycle()
         } else {
             playReadyDetail.textContent = 'Listo para iniciar'
+        }
+        if(!available){
+            clearAttractionCycle()
+        } else {
             scheduleAttraction()
         }
     }
@@ -319,7 +319,7 @@
             }
         } else {
             playButton.removeAttribute('aria-busy')
-            setEnabled(!document.getElementById('launch_button').disabled)
+            setEnabled(launchEnabled)
             progress.style.width = '0%'
             progressLabel.textContent = '0%'
             progressTrack.setAttribute('aria-valuenow', '0')
@@ -356,9 +356,15 @@
     function bindActions(){
         playButton.addEventListener('click', () => {
             runPlayImpact()
-            document.getElementById('launch_button')?.click()
+            if(typeof window.launchGame === 'function'){
+                window.launchGame()
+            }
         })
-        get('[data-sa-select-server]').addEventListener('click', () => toggleServerSelection(true))
+        get('[data-sa-select-server]').addEventListener('click', () => {
+            if(typeof toggleServerSelection === 'function'){
+                toggleServerSelection(true)
+            }
+        })
         getAll('[data-sa-open]').forEach(button => {
             button.addEventListener('click', async () => {
                 const target = button.dataset.saOpen
@@ -432,6 +438,18 @@
     }
 
     async function syncInitialState(){
+        const initialLaunchState = window.getLaunchState?.()
+        if(initialLaunchState != null){
+            setEnabled(initialLaunchState.enabled === true)
+            if(initialLaunchState.launching === true){
+                setLaunching(true)
+            }
+        }
+        const initialLaunchProgress = window.getLaunchProgress?.()
+        if(initialLaunchProgress != null){
+            setLaunchDetails(initialLaunchProgress.details)
+            setLaunchPercentage(initialLaunchProgress.percent)
+        }
         updateAccount(ConfigManager.getSelectedAccount())
         try {
             const distro = await DistroAPI.getDistribution()
@@ -454,12 +472,10 @@
             setLaunchPercentage
         }
         root.hidden = false
-        setLegacyHidden(true)
         runEntrance()
         syncInitialState()
     } catch(err) {
-        root.hidden = true
-        setLegacyHidden(false)
-        console.error('Squad Arcade initialization failed. Restoring legacy Home.', err)
+        root.hidden = false
+        console.error('Squad Arcade initialization failed.', err)
     }
 })()

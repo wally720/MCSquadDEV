@@ -222,6 +222,17 @@
     opacity: 1;
 }
 
+#settingsContainer.is-squad-settings-ready #settingsNavUpdate[update] {
+    color: var(--sa-settings-accent-strong);
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavUpdate[update]::after {
+    border-color: var(--sa-settings-accent);
+    background: var(--sa-settings-accent);
+    box-shadow: 0 0 9px rgba(var(--sa-settings-accent-rgb), 0.75);
+    opacity: 1;
+}
+
 #settingsContainer.is-squad-settings-ready .settingsNavItem:focus-visible {
     outline: 2px solid var(--sa-settings-accent);
     outline-offset: -3px;
@@ -400,6 +411,12 @@
     border: 1px solid rgba(151, 213, 229, 0.14);
     background: rgba(7, 15, 21, 0.72);
     box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+}
+
+#settingsContainer.is-squad-settings-ready #settingsUpdateAvailableIndicator {
+    color: var(--sa-settings-accent-strong);
+    font-family: monospace;
+    letter-spacing: 0.12em;
 }
 
 #settingsContainer.is-squad-settings-ready .settingsFieldContainer:hover,

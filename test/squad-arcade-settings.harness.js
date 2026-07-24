@@ -6,6 +6,7 @@ const vm = require('node:vm')
 const projectRoot = path.join(__dirname, '..')
 const settingsSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'settings.js'), 'utf8')
 const settingsMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'settings.ejs'), 'utf8')
+const landingMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'landing.ejs'), 'utf8')
 const landingSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'landing.js'), 'utf8')
 const squadArcadeSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'squad-arcade.js'), 'utf8')
 const uiCoreSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'uicore.js'), 'utf8')
@@ -291,6 +292,7 @@ function testMarkupContract(){
         'settingsJavaExecVal',
         'settingsJVMOptsVal',
         'settingsShowIntro',
+        'settingsUpdateAvailableIndicator',
         'settingsUpdateActionButton'
     ]
 
@@ -493,10 +495,9 @@ function testShowIntroNextStartup(){
         const elements = {
             main: new FakeElement(),
             welcome: new FakeElement(),
-            loadingContainer: new FakeElement(),
-            loadSpinnerImage: new FakeElement()
+            startupSurface: new FakeElement()
         }
-        const sut = loadFunctions(uiBinderSource, ['showIntroForStartup'], {
+        const sut = loadFunctions(uiBinderSource, ['hideStartupSurface', 'showIntroForStartup'], {
             ConfigManager: { getShowIntro: () => showIntro },
             VIEWS: { welcome: '#welcome' },
             document: {
@@ -556,10 +557,6 @@ function testFullSaveOrder(){
 
 function testServerChangeOrder(){
     const calls = []
-    const elements = Object.fromEntries([
-        'server_thumbnail',
-        'launch_button'
-    ].map(id => [id, new FakeElement({ id })]))
     const context = {
         getCurrentView(){ return '#settingsContainer' },
         VIEWS: { settings: '#settingsContainer' },
@@ -568,12 +565,9 @@ function testServerChangeOrder(){
             setSelectedServer(id){ calls.push(`setSelectedServer:${id}`) },
             save(){ calls.push('ConfigManager.save') }
         },
-        server_selection_button: new FakeElement(),
-        Lang: { queryJS(){ return 'None' } },
-        document: { getElementById: id => elements[id] },
         animateSettingsTabRefresh(){ calls.push('refresh') },
-        setLaunchEnabled(){ calls.push('setLaunchEnabled') },
-        window: { squadArcade: { updateServer(){ calls.push('squadArcade.updateServer') } } }
+        setLaunchEnabled(value){ calls.push(['setLaunchEnabled', value]) },
+        window: { squadArcade: { updateServer(server){ calls.push(['squadArcade.updateServer', server?.rawServer?.id || null]) } } }
     }
     const sut = loadFunctions(landingSource, ['updateSelectedServer'], context)
     sut.updateSelectedServer({ rawServer: { id: 'server-b', name: 'Beta', icon: 'beta.png' } })
@@ -583,6 +577,12 @@ function testServerChangeOrder(){
         'ConfigManager.save',
         'refresh'
     ])
+    assert.deepEqual(calls.slice(-2), [['setLaunchEnabled', true], ['squadArcade.updateServer', 'server-b']])
+
+    calls.length = 0
+    sut.updateSelectedServer(null)
+    assert.equal(calls.includes('setSelectedServer:null'), true)
+    assert.deepEqual(calls.slice(-2), [['setLaunchEnabled', false], ['squadArcade.updateServer', null]])
 }
 
 function testDoneAfterSave(){
@@ -616,12 +616,10 @@ function testDoneAfterSave(){
 async function testSettingsRoutes(){
     const calls = []
     const elements = {
-        settingsMediaButton: new FakeElement({ id: 'settingsMediaButton' }),
-        avatarOverlay: new FakeElement({ id: 'avatarOverlay' }),
         settingsNavAccount: new FakeElement({ id: 'settingsNavAccount' }),
         settingsNavMods: new FakeElement({ id: 'settingsNavMods' }),
         settingsNavUpdate: new FakeElement({ id: 'settingsNavUpdate' }),
-        image_seal_container: new FakeElement({ id: 'image_seal_container' })
+        settingsUpdateAvailableIndicator: new FakeElement({ id: 'settingsUpdateAvailableIndicator' })
     }
     const document = { getElementById: id => elements[id] || null }
     const common = {
@@ -635,21 +633,33 @@ async function testSettingsRoutes(){
         },
         settingsNavItemListener(element, fade){ calls.push(`tab:${element.id}:${fade}`) }
     }
-    const landingBindings = extractBetween(landingSource, '// Bind settings button', '// Bind selected account')
-    vm.runInNewContext(landingBindings, common)
-    await elements.settingsMediaButton.onclick({})
+    const open = loadFunctions(squadArcadeSource, ['openSettings'], common)
+    await open.openSettings()
     assert.deepEqual(calls.splice(0), ['prepare', 'switch:#settingsContainer'])
-    await elements.avatarOverlay.onclick({})
+    await open.openSettings('settingsNavAccount')
     assert.deepEqual(calls.splice(0), ['prepare', 'switch:#settingsContainer', 'tab:settingsNavAccount:false'])
 
-    const open = loadFunctions(squadArcadeSource, ['openSettings'], common)
     await open.openSettings('settingsNavMods')
     assert.deepEqual(calls.splice(0), ['prepare', 'switch:#settingsContainer', 'tab:settingsNavMods:false'])
 
     const update = loadFunctions(uiCoreSource, ['showUpdateUI'], common)
     update.showUpdateUI({ version: '2.0.0' })
-    elements.image_seal_container.onclick()
-    assert.deepEqual(calls, ['switch:#settingsContainer', 'tab:settingsNavUpdate:false'])
+    assert.equal(elements.settingsNavUpdate.hasAttribute('update'), true)
+    assert.equal(elements.settingsNavUpdate.getAttribute('aria-describedby'), 'settingsUpdateAvailableIndicator')
+    assert.equal(elements.settingsUpdateAvailableIndicator.hidden, false)
+    assert.deepEqual(calls, [], 'updater marks the existing Settings action without synthetic navigation')
+    assert.match(settingsMarkup, /id="settingsUpdateAvailableIndicator"[^>]*role="status"[^>]*aria-live="polite"[^>]*hidden/)
+    assert.doesNotMatch(landingMarkup, /image_seal_container|updateAvailableTooltip/)
+}
+
+function testUpdaterRuntimeContract(){
+    for(const event of ['checking-for-update', 'update-available', 'update-downloaded', 'update-not-available', 'ready', 'realerror']){
+        assert.match(uiCoreSource, new RegExp(`case ['"]${event}['"]`), `${event} remains handled`)
+    }
+    assert.match(uiCoreSource, /populateSettingsUpdateInformation\(info\)/, 'available update details still populate Settings')
+    assert.match(uiCoreSource, /settingsUpdateButtonStatus\([^]*installUpdateNow[^]*\)/, 'downloaded updates retain the install action')
+    assert.match(uiCoreSource, /setInterval\([^]*checkForUpdate[^]*1800000\)/, 'periodic update checking remains active')
+    assert.match(uiCoreSource, /loggerAutoUpdater\.error\('Error during update check\.\.'/ , 'unexpected updater failures remain logged')
 }
 
 function testBlockedSideEffects(){
@@ -676,10 +686,12 @@ function testMotionLayerSeparation(){
 function testVisualAssetContract(){
     const launcherIndex = appMarkup.indexOf('./assets/css/launcher.css')
     const homeIndex = appMarkup.indexOf('./assets/css/squad-arcade.css')
+    const startupIndex = appMarkup.indexOf('./assets/css/squad-arcade-startup.css')
     const introIndex = appMarkup.indexOf('./assets/css/squad-arcade-intro.css')
     const settingsIndex = appMarkup.indexOf('./assets/css/squad-arcade-settings.css')
     assert.ok(launcherIndex >= 0 && launcherIndex < settingsIndex, 'Settings CSS loads after launcher CSS')
     assert.ok(homeIndex >= 0 && homeIndex < settingsIndex, 'Settings CSS loads after Home CSS')
+    assert.ok(homeIndex < startupIndex && startupIndex < introIndex, 'startup CSS loads between Home and Intro CSS')
     assert.ok(introIndex >= 0 && introIndex < settingsIndex, 'Settings CSS loads after Intro CSS')
 
     const selectorLines = settingsStyles.split(/\r?\n/)
@@ -2324,6 +2336,7 @@ async function run(){
     await scenario('prepareSettings first-load order', () => testPrepareSettings(true))
     await scenario('prepareSettings refresh order', () => testPrepareSettings(false))
     await scenario('normal, Account, Mods, and Update routes', testSettingsRoutes)
+    await scenario('updater checking, notification, install, and error contracts', testUpdaterRuntimeContract)
     await scenario('settings tab selection, scroll, and visibility', testSettingsNavigation)
     await scenario('generic and server-dependent cValue bindings', testGenericValues)
     await scenario('ShowIntro markup is localized and has no replay action', testShowIntroMarkup)

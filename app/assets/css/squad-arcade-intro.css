@@ -6,16 +6,6 @@
     --sai-void: #050712;
 }
 
-/* The legacy nodes remain available to startup bindings, but their artwork is never painted. */
-#loadCenterImage,
-#loadSpinnerImage {
-    display: none !important;
-}
-
-#loadingContainer {
-    background: #050712;
-}
-
 #welcomeContainer.sai-intro {
     position: relative;
     display: block;

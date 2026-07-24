@@ -2,13 +2,8 @@
  * Script for landing.ejs
  */
 // Requirements
-const { URL }                 = require('url')
+const { getServerStatus }     = require('helios-core/mojang')
 const {
-    MojangRestAPI,
-    getServerStatus
-}                             = require('helios-core/mojang')
-const {
-    RestResponseStatus,
     isDisplayableError,
     validateLocalFile
 }                             = require('helios-core/common')
@@ -31,18 +26,20 @@ const {
 const DiscordWrapper          = require('./assets/js/discordwrapper')
 const ProcessBuilder          = require('./assets/js/processbuilder')
 
-// Launch Elements
-const launch_content          = document.getElementById('launch_content')
-const launch_details          = document.getElementById('launch_details')
-const launch_progress         = document.getElementById('launch_progress')
-const launch_progress_label   = document.getElementById('launch_progress_label')
-const launch_details_text     = document.getElementById('launch_details_text')
-const server_selection_button = document.getElementById('server_selection_button')
-const user_text               = document.getElementById('user_text')
-
 const loggerLanding = LoggerUtil.getLogger('Landing')
 
 /* Launch Progress Wrapper Functions */
+
+const launchState = {
+    enabled: false,
+    launching: false
+}
+const launchProgress = {
+    details: '',
+    percent: 0
+}
+window.getLaunchState = () => ({ ...launchState })
+window.getLaunchProgress = () => ({ ...launchProgress })
 
 /**
  * Show/hide the loading area.
@@ -50,12 +47,9 @@ const loggerLanding = LoggerUtil.getLogger('Landing')
  * @param {boolean} loading True if the loading area should be shown, otherwise false.
  */
 function toggleLaunchArea(loading){
-    if(loading){
-        launch_details.style.display = 'flex'
-        launch_content.style.display = 'none'
-    } else {
-        launch_details.style.display = 'none'
-        launch_content.style.display = 'inline-flex'
+    launchState.launching = loading
+    if(!loading){
+        launchProgress.percent = 0
     }
     window.squadArcade?.setLaunching(loading)
 }
@@ -66,8 +60,8 @@ function toggleLaunchArea(loading){
  * @param {string} details The new text for the loading details.
  */
 function setLaunchDetails(details){
-    launch_details_text.innerHTML = details
-    window.squadArcade?.setLaunchDetails(details)
+    launchProgress.details = details
+    window.squadArcade?.setLaunchDetails(launchProgress.details)
 }
 
 /**
@@ -76,10 +70,8 @@ function setLaunchDetails(details){
  * @param {number} percent Percentage (0-100)
  */
 function setLaunchPercentage(percent){
-    launch_progress.setAttribute('max', 100)
-    launch_progress.setAttribute('value', percent)
-    launch_progress_label.innerHTML = percent + '%'
-    window.squadArcade?.setLaunchPercentage(percent)
+    launchProgress.percent = percent
+    window.squadArcade?.setLaunchPercentage(launchProgress.percent)
 }
 
 /**
@@ -98,12 +90,12 @@ function setDownloadPercentage(percent){
  * @param {boolean} val True to enable, false to disable.
  */
 function setLaunchEnabled(val){
-    document.getElementById('launch_button').disabled = !val
-    window.squadArcade?.setEnabled(val)
+    launchState.enabled = val
+    window.squadArcade?.setEnabled(launchState.enabled)
 }
 
-// Bind launch button
-document.getElementById('launch_button').addEventListener('click', async e => {
+// Expose the single launch entry used by Home.
+async function launchGame(){
     loggerLanding.info('Iniciando el juego..')
     try {
         const server = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
@@ -129,34 +121,12 @@ document.getElementById('launch_button').addEventListener('click', async e => {
         loggerLanding.error('Error no manejado durante el proceso de lanzamiento.', err)
         showLaunchFailure(Lang.queryJS('landing.launch.failureTitle'), Lang.queryJS('landing.launch.failureText'))
     }
-})
-
-// Bind settings button
-document.getElementById('settingsMediaButton').onclick = async e => {
-    await prepareSettings()
-    switchView(getCurrentView(), VIEWS.settings)
 }
 
-// Bind avatar overlay button.
-document.getElementById('avatarOverlay').onclick = async e => {
-    await prepareSettings()
-    switchView(getCurrentView(), VIEWS.settings, 500, 500, () => {
-        settingsNavItemListener(document.getElementById('settingsNavAccount'), false)
-    })
-}
+window.launchGame = launchGame
 
 // Bind selected account
 function updateSelectedAccount(authUser){
-    let username = Lang.queryJS('landing.selectedAccount.noAccountSelected')
-    if(authUser != null){
-        if(authUser.displayName != null){
-            username = authUser.displayName
-        }
-        if(authUser.uuid != null){
-            document.getElementById('avatarContainer').style.backgroundImage = `url('https://mc-heads.net/body/${authUser.uuid}/right')`
-        }
-    }
-    user_text.innerHTML = username
     window.squadArcade?.updateAccount(authUser)
 }
 updateSelectedAccount(ConfigManager.getSelectedAccount())
@@ -168,103 +138,17 @@ function updateSelectedServer(serv){
     }
     ConfigManager.setSelectedServer(serv != null ? serv.rawServer.id : null)
     ConfigManager.save()
-    server_selection_button.innerHTML = '&#8226; ' + (serv != null ? serv.rawServer.name : Lang.queryJS('landing.noSelection'))
-    // ←– Aquí va la actualización de la miniatura
-    const thumb = document.getElementById('server_thumbnail')
-    if (serv && serv.rawServer.icon) {
-        // La URL del icono viene en `.icon`
-        thumb.src = serv.rawServer.icon
-    } else if (serv && serv.rawServer.iconUrl) {
-        // (opcional) fallback si alguna versión futura usa iconUrl
-        thumb.src = serv.rawServer.iconUrl
-    } else {
-        // Imagen por defecto
-        thumb.src = './assets/images/SealCircle.png'
-    }
-    // 2) ahora asignas ese mismo icono como fondo del botón JUGAR
-    const launchBtn = document.getElementById('launch_button')
-    if (serv && serv.rawServer.icon) {
-        launchBtn.style.backgroundImage = `url('${serv.rawServer.icon}')`
-    } else {
-        launchBtn.style.backgroundImage = 'none'
-    }
     if(getCurrentView() === VIEWS.settings){
         animateSettingsTabRefresh()
     }
     setLaunchEnabled(serv != null)
     window.squadArcade?.updateServer(serv)
 }
-// Real text is set in uibinder.js on distributionIndexDone.
-server_selection_button.innerHTML = '&#8226; ' + Lang.queryJS('landing.selectedServer.loading')
-server_selection_button.onclick = async e => {
-    e.target.blur()
-    await toggleServerSelection(true)
-}
 
-// Update Mojang Status Color
-const refreshMojangStatuses = async function(){
-    loggerLanding.info('Actualizando los estados de Mojang..')
-
-    let status = 'grey'
-    let tooltipEssentialHTML = ''
-    let tooltipNonEssentialHTML = ''
-
-    const response = await MojangRestAPI.status()
-    let statuses
-    if(response.responseStatus === RestResponseStatus.SUCCESS) {
-        statuses = response.data
-    } else {
-        loggerLanding.warn('No se puede actualizar el estado del servicio de Mojang.')
-        statuses = MojangRestAPI.getDefaultStatuses()
-    }
-    
-    greenCount = 0
-    greyCount = 0
-
-    for(let i=0; i<statuses.length; i++){
-        const service = statuses[i]
-
-        const tooltipHTML = `<div class="mojangStatusContainer">
-            <span class="mojangStatusIcon" style="color: ${MojangRestAPI.statusToHex(service.status)};">&#8226;</span>
-            <span class="mojangStatusName">${service.name}</span>
-        </div>`
-        if(service.essential){
-            tooltipEssentialHTML += tooltipHTML
-        } else {
-            tooltipNonEssentialHTML += tooltipHTML
-        }
-
-        if(service.status === 'yellow' && status !== 'red'){
-            status = 'yellow'
-        } else if(service.status === 'red'){
-            status = 'red'
-        } else {
-            if(service.status === 'grey'){
-                ++greyCount
-            }
-            ++greenCount
-        }
-
-    }
-
-    if(greenCount === statuses.length){
-        if(greyCount === statuses.length){
-            status = 'grey'
-        } else {
-            status = 'green'
-        }
-    }
-    
-    document.getElementById('mojangStatusEssentialContainer').innerHTML = tooltipEssentialHTML
-    document.getElementById('mojangStatusNonEssentialContainer').innerHTML = tooltipNonEssentialHTML
-    document.getElementById('mojang_status_icon').style.color = MojangRestAPI.statusToHex(status)
-}
-
-const refreshServerStatus = async (fade = false) => {
+const refreshServerStatus = async () => {
     loggerLanding.info('Refreshing Server Status')
     const serv = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
 
-    let pLabel = Lang.queryJS('landing.serverStatus.server')
     let pVal = Lang.queryJS('landing.serverStatus.offline')
     let online = false
 
@@ -272,7 +156,6 @@ const refreshServerStatus = async (fade = false) => {
 
         const servStat = await getServerStatus(47, serv.hostname, serv.port)
         console.log(servStat)
-        pLabel = Lang.queryJS('landing.serverStatus.players')
         pVal = servStat.players.online + '/' + servStat.players.max
         online = true
 
@@ -280,25 +163,12 @@ const refreshServerStatus = async (fade = false) => {
         loggerLanding.warn('No se puede actualizar el estado del servidor, asumiendo que está desconectado.')
         loggerLanding.debug(err)
     }
-    if(fade){
-        $('#server_status_wrapper').fadeOut(250, () => {
-            document.getElementById('landingPlayerLabel').innerHTML = pLabel
-            document.getElementById('player_count').innerHTML = pVal
-            $('#server_status_wrapper').fadeIn(500)
-        })
-    } else {
-        document.getElementById('landingPlayerLabel').innerHTML = pLabel
-        document.getElementById('player_count').innerHTML = pVal
-    }
     window.squadArcade?.updateStatus(online, pVal)
     
 }
 
-refreshMojangStatuses()
 // Server Status is refreshed in uibinder.js on distributionIndexDone.
 
-// Refresh statuses every hour. The status page itself refreshes every day so...
-let mojangStatusListener = setInterval(() => refreshMojangStatuses(true), 60*60*1000)
 // Set refresh rate to once every 5 minutes.
 let serverStatusListener = setInterval(() => refreshServerStatus(true), 300000)
 
@@ -662,397 +532,4 @@ async function dlAsync(login = true) {
         }
     }
 
-}
-
-/**
- * News Loading Functions
- */
-
-// DOM Cache
-const newsContent                   = document.getElementById('newsContent')
-const newsArticleTitle              = document.getElementById('newsArticleTitle')
-const newsArticleDate               = document.getElementById('newsArticleDate')
-const newsArticleAuthor             = document.getElementById('newsArticleAuthor')
-const newsArticleComments           = document.getElementById('newsArticleComments')
-const newsNavigationStatus          = document.getElementById('newsNavigationStatus')
-const newsArticleContentScrollable  = document.getElementById('newsArticleContentScrollable')
-const nELoadSpan                    = document.getElementById('nELoadSpan')
-const newsButton                    = document.getElementById('newsButton')
-const newsButtonAlert               = document.getElementById('newsButtonAlert')
-
-// News slide caches.
-let newsActive = false
-let newsGlideCount = 0
-
-/**
- * Show the news UI via a slide animation.
- * 
- * @param {boolean} up True to slide up, otherwise false. 
- */
-function slide_(up){
-    const lCUpper = document.querySelector('#landingContainer > #upper')
-    const lCLLeft = document.querySelector('#landingContainer > #lower > #left')
-    const lCLCenter = document.querySelector('#landingContainer > #lower > #center')
-    const lCLRight = document.querySelector('#landingContainer > #lower > #right')
-    const newsBtn = document.querySelector('#landingContainer > #lower > #center #content')
-    const landingContainer = document.getElementById('landingContainer')
-    const newsContainer = document.querySelector('#landingContainer > #newsContainer')
-
-    newsGlideCount++
-
-    if(up){
-        lCUpper.style.top = '-200vh'
-        lCLLeft.style.top = '-200vh'
-        lCLCenter.style.top = '-200vh'
-        lCLRight.style.top = '-200vh'
-        newsBtn.style.top = '130vh'
-        newsContainer.style.top = '0px'
-        //date.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric'})
-        //landingContainer.style.background = 'rgba(29, 29, 29, 0.55)'
-        landingContainer.style.background = 'rgba(0, 0, 0, 0.50)'
-        setTimeout(() => {
-            if(newsGlideCount === 1){
-                lCLCenter.style.transition = 'none'
-                newsBtn.style.transition = 'none'
-            }
-            newsGlideCount--
-        }, 2000)
-    } else {
-        setTimeout(() => {
-            newsGlideCount--
-        }, 2000)
-        landingContainer.style.background = null
-        lCLCenter.style.transition = null
-        newsBtn.style.transition = null
-        newsContainer.style.top = '100%'
-        lCUpper.style.top = '0px'
-        lCLLeft.style.top = '0px'
-        lCLCenter.style.top = '0px'
-        lCLRight.style.top = '0px'
-        newsBtn.style.top = '10px'
-    }
-}
-
-// Bind news button when the legacy control is present.
-if(newsButton != null) newsButton.onclick = () => {
-    // Toggle tabbing.
-    if(newsActive){
-        $('#landingContainer *').removeAttr('tabindex')
-        $('#newsContainer *').attr('tabindex', '-1')
-    } else {
-        $('#landingContainer *').attr('tabindex', '-1')
-        $('#newsContainer, #newsContainer *, #lower, #lower #center *').removeAttr('tabindex')
-        if(newsAlertShown){
-            $('#newsButtonAlert').fadeOut(2000)
-            newsAlertShown = false
-            ConfigManager.setNewsCacheDismissed(true)
-            ConfigManager.save()
-        }
-    }
-    slide_(!newsActive)
-    newsActive = !newsActive
-}
-
-// Array to store article meta.
-let newsArr = null
-
-// News load animation listener.
-let newsLoadingListener = null
-
-/**
- * Set the news loading animation.
- * 
- * @param {boolean} val True to set loading animation, otherwise false.
- */
-function setNewsLoading(val){
-    if(val){
-        const nLStr = Lang.queryJS('landing.news.checking')
-        let dotStr = '..'
-        nELoadSpan.innerHTML = nLStr + dotStr
-        newsLoadingListener = setInterval(() => {
-            if(dotStr.length >= 3){
-                dotStr = ''
-            } else {
-                dotStr += '.'
-            }
-            nELoadSpan.innerHTML = nLStr + dotStr
-        }, 750)
-    } else {
-        if(newsLoadingListener != null){
-            clearInterval(newsLoadingListener)
-            newsLoadingListener = null
-        }
-    }
-}
-
-// Bind retry button.
-newsErrorRetry.onclick = () => {
-    $('#newsErrorFailed').fadeOut(250, () => {
-        initNews()
-        $('#newsErrorLoading').fadeIn(250)
-    })
-}
-
-newsArticleContentScrollable.onscroll = (e) => {
-    if(e.target.scrollTop > Number.parseFloat($('.newsArticleSpacerTop').css('height'))){
-        newsContent.setAttribute('scrolled', '')
-    } else {
-        newsContent.removeAttribute('scrolled')
-    }
-}
-
-/**
- * Reload the news without restarting.
- * 
- * @returns {Promise.<void>} A promise which resolves when the news
- * content has finished loading and transitioning.
- */
-function reloadNews(){
-    return new Promise((resolve, reject) => {
-        $('#newsContent').fadeOut(250, () => {
-            $('#newsErrorLoading').fadeIn(250)
-            initNews().then(() => {
-                resolve()
-            })
-        })
-    })
-}
-
-let newsAlertShown = false
-
-/**
- * Show the news alert indicating there is new news.
- */
-function showNewsAlert(){
-    newsAlertShown = true
-    if(newsButtonAlert != null){
-        $(newsButtonAlert).fadeIn(250)
-    }
-}
-
-async function digestMessage(str) {
-    const msgUint8 = new TextEncoder().encode(str)
-    const hashBuffer = await crypto.subtle.digest('SHA-1', msgUint8)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const hashHex = hashArray
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('')
-    return hashHex
-}
-
-/**
- * Initialize News UI. This will load the news and prepare
- * the UI accordingly.
- * 
- * @returns {Promise.<void>} A promise which resolves when the news
- * content has finished loading and transitioning.
- */
-async function initNews(){
-
-    setNewsLoading(true)
-
-    const news = await loadNews()
-
-    newsArr = news?.articles || null
-
-    if(newsArr == null){
-        // News Loading Failed
-        setNewsLoading(false)
-
-        await $('#newsErrorLoading').fadeOut(250).promise()
-        await $('#newsErrorFailed').fadeIn(250).promise()
-
-    } else if(newsArr.length === 0) {
-        // No News Articles
-        setNewsLoading(false)
-
-        ConfigManager.setNewsCache({
-            date: null,
-            content: null,
-            dismissed: false
-        })
-        ConfigManager.save()
-
-        await $('#newsErrorLoading').fadeOut(250).promise()
-        await $('#newsErrorNone').fadeIn(250).promise()
-    } else {
-        // Success
-        setNewsLoading(false)
-
-        const lN = newsArr[0]
-        const cached = ConfigManager.getNewsCache()
-        let newHash = await digestMessage(lN.content)
-        let newDate = new Date(lN.date)
-        let isNew = false
-
-        if(cached.date != null && cached.content != null){
-
-            if(new Date(cached.date) >= newDate){
-
-                // Compare Content
-                if(cached.content !== newHash){
-                    isNew = true
-                    showNewsAlert()
-                } else {
-                    if(!cached.dismissed){
-                        isNew = true
-                        showNewsAlert()
-                    }
-                }
-
-            } else {
-                isNew = true
-                showNewsAlert()
-            }
-
-        } else {
-            isNew = true
-            showNewsAlert()
-        }
-
-        if(isNew){
-            ConfigManager.setNewsCache({
-                date: newDate.getTime(),
-                content: newHash,
-                dismissed: false
-            })
-            ConfigManager.save()
-        }
-
-        const switchHandler = (forward) => {
-            let cArt = parseInt(newsContent.getAttribute('article'))
-            let nxtArt = forward ? (cArt >= newsArr.length-1 ? 0 : cArt + 1) : (cArt <= 0 ? newsArr.length-1 : cArt - 1)
-    
-            displayArticle(newsArr[nxtArt], nxtArt+1)
-        }
-
-        document.getElementById('newsNavigateRight').onclick = () => { switchHandler(true) }
-        document.getElementById('newsNavigateLeft').onclick = () => { switchHandler(false) }
-        await $('#newsErrorContainer').fadeOut(250).promise()
-        displayArticle(newsArr[0], 1)
-        await $('#newsContent').fadeIn(250).promise()
-    }
-
-
-}
-
-/**
- * Add keyboard controls to the news UI. Left and right arrows toggle
- * between articles. If you are on the landing page, the up arrow will
- * open the news UI.
- */
-document.addEventListener('keydown', (e) => {
-    if(newsActive){
-        if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){
-            document.getElementById(e.key === 'ArrowRight' ? 'newsNavigateRight' : 'newsNavigateLeft').click()
-        }
-        // Interferes with scrolling an article using the down arrow.
-        // Not sure of a straight forward solution at this point.
-        // if(e.key === 'ArrowDown'){
-        //     document.getElementById('newsButton').click()
-        // }
-    } else {
-        if(getCurrentView() === VIEWS.landing){
-            if(e.key === 'ArrowUp'){
-                newsButton?.click()
-            }
-        }
-    }
-})
-
-/**
- * Display a news article on the UI.
- * 
- * @param {Object} articleObject The article meta object.
- * @param {number} index The article index.
- */
-function displayArticle(articleObject, index){
-    newsArticleTitle.innerHTML = articleObject.title
-    newsArticleTitle.href = articleObject.link
-    newsArticleAuthor.innerHTML = 'by ' + articleObject.author
-    newsArticleDate.innerHTML = articleObject.date
-    newsArticleComments.innerHTML = articleObject.comments
-    newsArticleComments.href = articleObject.commentsLink
-    newsArticleContentScrollable.innerHTML = '<div id="newsArticleContentWrapper"><div class="newsArticleSpacerTop"></div>' + articleObject.content + '<div class="newsArticleSpacerBot"></div></div>'
-    Array.from(newsArticleContentScrollable.getElementsByClassName('bbCodeSpoilerButton')).forEach(v => {
-        v.onclick = () => {
-            const text = v.parentElement.getElementsByClassName('bbCodeSpoilerText')[0]
-            text.style.display = text.style.display === 'block' ? 'none' : 'block'
-        }
-    })
-    newsNavigationStatus.innerHTML = Lang.query('ejs.landing.newsNavigationStatus', {currentPage: index, totalPages: newsArr.length})
-    newsContent.setAttribute('article', index-1)
-}
-
-/**
- * Load news information from the RSS feed specified in the
- * distribution index.
- */
-async function loadNews(){
-
-    const distroData = await DistroAPI.getDistribution()
-    if(!distroData.rawDistribution.rss) {
-        loggerLanding.debug('No RSS feed provided.')
-        return null
-    }
-
-    const promise = new Promise((resolve, reject) => {
-        
-        const newsFeed = distroData.rawDistribution.rss
-        const newsHost = new URL(newsFeed).origin + '/'
-        $.ajax({
-            url: newsFeed,
-            success: (data) => {
-                const items = $(data).find('item')
-                const articles = []
-
-                for(let i=0; i<items.length; i++){
-                // JQuery Element
-                    const el = $(items[i])
-
-                    // Resolve date.
-                    const date = new Date(el.find('pubDate').text()).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric'})
-
-                    // Resolve comments.
-                    let comments = el.find('slash\\:comments').text() || '0'
-                    comments = comments + ' Comment' + (comments === '1' ? '' : 's')
-
-                    // Fix relative links in content.
-                    let content = el.find('content\\:encoded').text()
-                    let regex = /src="(?!http:\/\/|https:\/\/)(.+?)"/g
-                    let matches
-                    while((matches = regex.exec(content))){
-                        content = content.replace(`"${matches[1]}"`, `"${newsHost + matches[1]}"`)
-                    }
-
-                    let link   = el.find('link').text()
-                    let title  = el.find('title').text()
-                    let author = el.find('dc\\:creator').text()
-
-                    // Generate article.
-                    articles.push(
-                        {
-                            link,
-                            title,
-                            date,
-                            author,
-                            content,
-                            comments,
-                            commentsLink: link + '#comments'
-                        }
-                    )
-                }
-                resolve({
-                    articles
-                })
-            },
-            timeout: 2500
-        }).catch(err => {
-            resolve({
-                articles: null
-            })
-        })
-    })
-
-    return await promise
 }

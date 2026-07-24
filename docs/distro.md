@@ -14,7 +14,6 @@ The distribution index is written in JSON. The general format of the index is as
         "smallImageText": "WesterosCraft",
         "smallImageKey": "seal-circle"
     },
-    "rss": "https://westeroscraft.com/articles/index.rss",
     "servers": [
         {
             "id": "Example_Server",
@@ -50,7 +49,6 @@ The distribution index is written in JSON. The general format of the index is as
         "smallImageText": "WesterosCraft",
         "smallImageKey": "seal-circle"
     },
-    "rss": "https://westeroscraft.com/articles/index.rss",
     "servers": []
 }
 ```
@@ -69,12 +67,6 @@ Global settings for [Discord Rich Presence](https://discordapp.com/developers/do
 * `discord.smallImageText: string` - Tootltip for the `smallImageKey`.
 * `discord.smallImageKey: string` - Name of the uploaded image for the small profile artwork.
 
-
-### `DistroIndex.rss: string/url`
-
-A URL to a RSS feed. Used for loading news.
-
----
 
 ## Server Object
 

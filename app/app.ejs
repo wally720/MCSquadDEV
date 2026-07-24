@@ -6,6 +6,7 @@
     <script src="./assets/js/scripts/uibinder.js"></script>
     <link type="text/css" rel="stylesheet" href="./assets/css/launcher.css">
     <link type="text/css" rel="stylesheet" href="./assets/css/squad-arcade.css">
+    <link type="text/css" rel="stylesheet" href="./assets/css/squad-arcade-startup.css">
     <link type="text/css" rel="stylesheet" href="./assets/css/squad-arcade-intro.css">
     <link type="text/css" rel="stylesheet" href="./assets/css/squad-arcade-settings.css">
     <link type="text/css" rel="stylesheet" href="./assets/css/squad-arcade-settings-mods.css">
@@ -41,13 +42,18 @@
         <%- include('landing') %>
     </div>
     <%- include('overlay') %>
-    <div id="loadingContainer">
-        <div id="loadingContent">
-            <div id="loadSpinnerContainer">
-                <img id="loadCenterImage" src="assets/images/LoadingSeal.png">
-                <!-- <img id="loadSpinnerImage" class="rotating" src="assets/images/LoadingText.png"> -->
+    <section id="startupSurface" class="sa-startup" role="status" aria-live="polite" aria-atomic="true" aria-busy="true">
+        <div class="sa-startup-panel">
+            <div class="sa-startup-signal" aria-hidden="true">
+                <span>SA</span>
             </div>
+            <div class="sa-startup-copy">
+                <span class="sa-startup-kicker"><%- lang('startup.kicker') %></span>
+                <strong class="sa-startup-title"><%- lang('startup.title') %></strong>
+                <span class="sa-startup-detail"><%- lang('startup.detail') %></span>
+            </div>
+            <div class="sa-startup-track" aria-hidden="true"><span></span></div>
         </div>
-    </div>
+    </section>
 </body>
 </html>

@@ -18,12 +18,6 @@
     isolation: isolate;
 }
 
-#landingContainer.is-squad-arcade-ready > #upper,
-#landingContainer.is-squad-arcade-ready > #lower,
-#landingContainer.is-squad-arcade-ready > #newsContainer {
-    display: none !important;
-}
-
 .squad-arcade[data-theme='creeper'] {
     --sa-bg: #08150d;
     --sa-surface: #e9f0dc;

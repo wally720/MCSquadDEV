@@ -68,6 +68,25 @@ function prepareLoginOptionsForStartup(){
     loginOptionsViewOnLoginCancel = VIEWS.loginOptions
 }
 
+function hideStartupSurface(duration = 0, onComplete){
+    const complete = typeof onComplete === 'function' ? onComplete : () => {}
+    const surface = document.getElementById('startupSurface')
+    if(surface == null){
+        complete()
+        return
+    }
+    surface.setAttribute('aria-busy', 'false')
+    if(duration > 0){
+        $('#startupSurface').fadeOut(duration, () => {
+            surface.hidden = true
+            complete()
+        })
+    } else {
+        surface.hidden = true
+        complete()
+    }
+}
+
 function showIntroForStartup(){
     if(introStarted || fatalStartupError || !ConfigManager.getShowIntro()){
         return false
@@ -83,8 +102,7 @@ function showIntroForStartup(){
     currentView = VIEWS.welcome
     document.getElementById('main').style.display = 'block'
     document.querySelector(VIEWS.welcome).style.display = 'block'
-    document.getElementById('loadingContainer').style.display = 'none'
-    document.getElementById('loadSpinnerImage')?.classList.remove('rotating')
+    hideStartupSurface()
     intro.start()
     return true
 }
@@ -100,6 +118,9 @@ async function showMainUI(data){
     updateSelectedServer(data.getServerById(ConfigManager.getSelectedServer()))
     refreshServerStatus()
     const finishRuntimeStartup = () => {
+        if(fatalStartupError){
+            return
+        }
         document.getElementById('frameBar').style.backgroundColor = 'rgba(0, 0, 0, 0.5)'
         document.body.style.backgroundImage = `url('assets/images/backgrounds/${document.body.getAttribute('bkid')}.jpg')`
         $('#main').show()
@@ -123,9 +144,7 @@ async function showMainUI(data){
             currentView = startupView
             $(startupView).fadeIn(1000)
             setTimeout(() => {
-                $('#loadingContainer').fadeOut(500, () => {
-                    $('#loadSpinnerImage').removeClass('rotating')
-                })
+                hideStartupSurface(500)
             }, 250)
         }
     }
@@ -135,10 +154,6 @@ async function showMainUI(data){
     } else {
         setTimeout(finishRuntimeStartup, 750)
     }
-    // Disable tabbing to the news container.
-    initNews().then(() => {
-        $('#newsContainer *').attr('tabindex', '-1')
-    })
 }
 
 function showFatalStartupError(){
@@ -160,13 +175,11 @@ function showFatalStartupError(){
     }
 
     if(intro != null){
-        $('#loadingContainer').hide()
+        hideStartupSurface()
         renderFatalError()
     } else {
         setTimeout(() => {
-            $('#loadingContainer').fadeOut(250, () => {
-                renderFatalError()
-            })
+            hideStartupSurface(250, renderFatalError)
         }, 750)
     }
 }
@@ -179,7 +192,6 @@ function showFatalStartupError(){
 function onDistroRefresh(data){
     updateSelectedServer(data.getServerById(ConfigManager.getSelectedServer()))
     refreshServerStatus()
-    initNews()
     syncModConfigurations(data)
     ensureJavaSettings(data)
 }

@@ -9,6 +9,8 @@ const configSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js
 const uiBinderSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'uibinder.js'), 'utf8')
 const introMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'welcome.ejs'), 'utf8')
 const introStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'squad-arcade-intro.css'), 'utf8')
+const startupStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'squad-arcade-startup.css'), 'utf8')
+const launcherStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'launcher.css'), 'utf8')
 const appMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'app.ejs'), 'utf8')
 
 class FakeElement {
@@ -287,15 +289,21 @@ function testConfigDefault(){
     assert.equal(existing.saved.settings.launcher.showIntro, true, 'existing configs are migrated with the default')
 }
 
-function testLegacyLoadingFirstPaint(){
+function testStartupSurfaceFirstPaint(){
+    const startupLink = appMarkup.indexOf('assets/css/squad-arcade-startup.css')
     const introLink = appMarkup.indexOf('assets/css/squad-arcade-intro.css')
-    assert.ok(introLink > -1 && introLink < appMarkup.indexOf('</head>'), 'intro CSS is loaded in head')
-    assert.match(introStyles, /#loadCenterImage,\s*#loadSpinnerImage\s*\{[^}]*display:\s*none\s*!important;/s, 'legacy artwork is hidden by initial CSS')
-    assert.match(appMarkup, /id="loadCenterImage"[^>]*LoadingSeal\.png/, 'the bound legacy LoadingSeal node remains in the DOM')
-    assert.match(appMarkup, /id="loadingContainer"/, 'the functional loading container remains in the DOM')
-    assert.match(introStyles, /#loadingContainer\s*\{[^}]*background:\s*#050712;/s, 'disabled intro retains a minimal dark loading plate')
-    assert.match(uiBinderSource, /getElementById\('loadSpinnerImage'\)\?\.classList\.remove/, 'early binding remains null-safe')
-    assert.match(uiBinderSource, /\$\('#loadSpinnerImage'\)\.removeClass/, 'legacy completion binding remains intact')
+    assert.ok(startupLink > -1 && startupLink < introLink && introLink < appMarkup.indexOf('</head>'), 'startup CSS is available before Intro and first paint')
+    assert.match(appMarkup, /id="startupSurface"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"[^>]*aria-busy="true"/, 'startup surface announces one atomic busy status')
+    assert.match(appMarkup, /class="sa-startup-title"/)
+    assert.match(appMarkup, /class="sa-startup-detail"/)
+    assert.match(startupStyles, /\.sa-startup\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*22px 0 0;[^}]*background:/s, 'startup surface paints an immediate full plate')
+    assert.match(startupStyles, /\.sa-startup\[hidden\]\s*\{[^}]*display:\s*none\s*!important;/s)
+    assert.match(startupStyles, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*animation:\s*none;/, 'reduced motion keeps a static visible progress state')
+    assert.doesNotMatch(startupStyles, /anime/i, 'startup surface has no Anime dependency')
+    assert.doesNotMatch(appMarkup, /loadingContainer|loadingContent|loadSpinnerContainer|loadCenterImage|loadSpinnerImage|LoadingSeal\.png|LoadingText\.png/, 'legacy loading markup and artwork are retired')
+    assert.doesNotMatch(`${launcherStyles}\n${introStyles}`, /#loadingContainer|#loadCenterImage|#loadSpinnerImage|@keyframes rotating|\.rotating\s*\{/, 'legacy loading selectors are retired')
+    assert.equal(fs.existsSync(path.join(projectRoot, 'app', 'assets', 'images', 'LoadingSeal.png')), false)
+    assert.equal(fs.existsSync(path.join(projectRoot, 'app', 'assets', 'images', 'LoadingText.png')), false)
 }
 
 function testOptOutStartupContract(){
@@ -303,13 +311,13 @@ function testOptOutStartupContract(){
     config.setShowIntro(false)
     assert.equal(config.getShowIntro(), false, 'opt-out prevents intro selection')
     const earlyFunction = uiBinderSource.slice(
-        uiBinderSource.indexOf('function showIntroForStartup()'),
+        uiBinderSource.indexOf('function hideStartupSurface('),
         uiBinderSource.indexOf('async function showMainUI')
     )
     const readyHandler = uiBinderSource.slice(uiBinderSource.indexOf('document.addEventListener(\'readystatechange\''))
     assert.match(earlyFunction, /!ConfigManager\.getShowIntro\(\)/, 'opt-out gates intro creation')
     assert.match(earlyFunction, /window\.createSquadArcadeIntro\?\.\(\)/, 'intro is created lazily')
-    assert.match(earlyFunction, /loadingContainer'\)\.style\.display = 'none'/, 'early intro replaces the legacy seal')
+    assert.match(earlyFunction, /hideStartupSurface\(\)\s*intro\.start\(\)/, 'early intro replaces the native startup surface before motion starts')
     assert.ok(readyHandler.indexOf('showIntroForStartup()') < readyHandler.indexOf('if(rscShouldLoad)'), 'intro is presented before deferred runtime work')
     assert.doesNotMatch(introSource, /window\.squadArcadeIntro = createSquadArcadeIntro/, 'disabled intro is not initialized by welcome.js')
 
@@ -317,9 +325,9 @@ function testOptOutStartupContract(){
         const elements = {
             main: new FakeElement(null),
             welcomeContainer: new FakeElement(null),
-            loadingContainer: new FakeElement(null),
-            loadSpinnerImage: new FakeElement(null)
+            startupSurface: new FakeElement(null)
         }
+        elements.startupSurface.setAttribute('aria-busy', 'true')
         let created = 0
         let started = 0
         const context = {
@@ -347,13 +355,15 @@ function testOptOutStartupContract(){
     assert.equal(enabled.result, true)
     assert.equal(enabled.created, 1)
     assert.equal(enabled.started, 1)
-    assert.equal(enabled.elements.loadingContainer.style.display, 'none', 'enabled intro hides LoadingSeal immediately')
+    assert.equal(enabled.elements.startupSurface.hidden, true, 'enabled intro immediately replaces the startup surface')
+    assert.equal(enabled.elements.startupSurface.attributes.get('aria-busy'), 'false')
     assert.equal(enabled.elements.welcomeContainer.style.display, 'block')
 
     const disabled = runEarlyStartup(false)
     assert.equal(disabled.result, false)
-    assert.equal(disabled.created, 0, 'disabled intro keeps the legacy startup path without initialization')
-    assert.equal(disabled.elements.loadingContainer.style.display, undefined, 'disabled intro keeps functional loading while CSS hides its artwork')
+    assert.equal(disabled.created, 0, 'disabled intro keeps the native startup path without initialization')
+    assert.equal(disabled.elements.startupSurface.hidden, undefined, 'disabled intro keeps the native startup surface available')
+    assert.equal(disabled.elements.startupSurface.attributes.get('aria-busy'), 'true')
 }
 
 function testPersistenceAndRoutes(){
@@ -706,7 +716,7 @@ function testCompositionContract(){
 
 function run(){
     testConfigDefault()
-    testLegacyLoadingFirstPaint()
+    testStartupSurfaceFirstPaint()
     testOptOutStartupContract()
     testPersistenceAndRoutes()
     testFallbacksAndMotion()
