@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Launcher update badge preview</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --ink: #eef6f1;
+            --muted: #8fa49b;
+            --panel: rgba(12, 22, 20, .82);
+            --panel-strong: #101e1a;
+            --line: rgba(180, 232, 201, .16);
+            --green: #9af2b5;
+            --green-strong: #48db82;
+            --green-dark: #0c4026;
+            --amber: #f2c36e;
+            --shadow: 0 24px 80px rgba(0, 0, 0, .45);
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 34px;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 12% 12%, rgba(64, 178, 112, .18), transparent 28%),
+                radial-gradient(circle at 88% 84%, rgba(28, 103, 77, .16), transparent 34%),
+                #07100f;
+        }
+
+        .page { max-width: 1180px; margin: 0 auto; }
+
+        .eyebrow {
+            color: var(--green);
+            font: 700 11px/1.2 monospace;
+            letter-spacing: .24em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            max-width: 700px;
+            margin: 10px 0 8px;
+            font-size: clamp(30px, 5vw, 58px);
+            line-height: .96;
+            letter-spacing: -.06em;
+        }
+
+        .intro { max-width: 650px; color: var(--muted); line-height: 1.6; }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 280px;
+            gap: 22px;
+            align-items: start;
+            margin-top: 30px;
+        }
+
+        .launcher {
+            position: relative;
+            min-height: 560px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            background:
+                linear-gradient(135deg, rgba(23, 51, 38, .82), transparent 44%),
+                linear-gradient(145deg, #162a24, #080f0e 74%);
+            box-shadow: var(--shadow);
+        }
+
+        .launcher::before {
+            position: absolute;
+            inset: 0;
+            content: "";
+            opacity: .16;
+            background-image: linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px);
+            background-size: 34px 34px;
+            mask-image: linear-gradient(135deg, black, transparent 68%);
+        }
+
+        .topbar, .content { position: relative; z-index: 1; }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 22px 26px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .brand { display: flex; gap: 11px; align-items: center; font-weight: 800; letter-spacing: .12em; }
+        .brand-mark { width: 28px; height: 28px; border: 2px solid var(--green); transform: rotate(45deg); box-shadow: 0 0 20px rgba(72, 219, 130, .42); }
+        .brand small { display: block; color: var(--muted); font: 10px monospace; letter-spacing: .16em; }
+        .nav { display: flex; gap: 11px; align-items: center; }
+        .nav button { border: 0; color: var(--muted); background: transparent; font: 700 11px monospace; letter-spacing: .12em; cursor: pointer; }
+        .nav button:hover { color: var(--ink); }
+
+        .update-badge {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 12px;
+            border: 1px solid rgba(154, 242, 181, .54);
+            border-radius: 999px;
+            color: var(--green);
+            background: rgba(58, 179, 100, .12);
+            box-shadow: 0 0 0 rgba(72, 219, 130, 0);
+            font: 800 10px monospace;
+            letter-spacing: .1em;
+            cursor: pointer;
+            transition: .22s ease;
+        }
+
+        .update-badge:hover { background: rgba(58, 179, 100, .22); transform: translateY(-1px); }
+        .update-badge[hidden] { display: none; }
+        .update-badge::before { width: 7px; height: 7px; content: ""; border-radius: 50%; background: var(--green-strong); box-shadow: 0 0 14px var(--green-strong); }
+
+        .state-available .update-badge { animation: beacon 2.4s ease-in-out infinite; }
+        .state-ready .update-badge { color: #07100f; border-color: var(--green); background: var(--green); }
+        .state-ready .update-badge::before { background: #07100f; box-shadow: none; }
+        .state-downloading .update-badge { color: var(--amber); border-color: rgba(242,195,110,.55); background: rgba(242,195,110,.1); }
+        .state-downloading .update-badge::before { background: var(--amber); box-shadow: 0 0 14px var(--amber); }
+
+        @keyframes beacon {
+            0%, 100% { box-shadow: 0 0 0 rgba(72, 219, 130, 0); }
+            50% { box-shadow: 0 0 0 7px rgba(72, 219, 130, .08), 0 0 24px rgba(72, 219, 130, .18); }
+        }
+
+        .content { display: grid; grid-template-columns: 1.1fr .9fr; gap: 28px; padding: 70px 52px 52px; }
+        .content h2 { max-width: 430px; margin: 0 0 14px; font-size: clamp(34px, 5vw, 66px); line-height: .92; letter-spacing: -.07em; }
+        .content p { max-width: 390px; color: var(--muted); line-height: 1.55; }
+        .server-card { align-self: end; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: rgba(4, 10, 9, .48); }
+        .server-card small { color: var(--green); font: 700 10px monospace; letter-spacing: .15em; }
+        .server-card strong { display: block; margin-top: 12px; font-size: 24px; }
+        .play { width: 100%; margin-top: 28px; padding: 16px; border: 0; border-radius: 9px; color: #06100b; background: var(--green); font-weight: 900; letter-spacing: .16em; cursor: pointer; }
+
+        .controls { padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); box-shadow: var(--shadow); }
+        .controls h3 { margin: 0 0 6px; font-size: 15px; }
+        .controls p { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+        .state-button { display: block; width: 100%; margin: 9px 0; padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: rgba(255,255,255,.03); text-align: left; cursor: pointer; }
+        .state-button:hover, .state-button[aria-pressed="true"] { border-color: var(--green); color: var(--green); background: rgba(72, 219, 130, .1); }
+        .state-button b { display: block; margin-bottom: 4px; font-size: 12px; }
+        .state-button span { color: var(--muted); font-size: 11px; }
+        .note { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font: 11px/1.6 monospace; }
+
+        @media (max-width: 800px) {
+            body { padding: 18px; }
+            .workspace { grid-template-columns: 1fr; }
+            .launcher { min-height: 470px; }
+            .content { grid-template-columns: 1fr; padding: 54px 28px 30px; }
+            .topbar { padding: 18px; }
+            .nav button { display: none; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <div class="eyebrow">MCSQUAD / VISUAL CONCEPT</div>
+        <h1>Una señal que se ve sin gritar.</h1>
+        <p class="intro">Mockup de la propuesta: la actualización aparece en la Home, conserva el detalle en Settings y cambia de estado según el progreso real.</p>
+
+        <section class="workspace">
+            <article class="launcher state-available" id="launcher" aria-label="Vista previa del launcher">
+                <header class="topbar">
+                    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>MCSQUAD<small>ARCADE LAUNCHER</small></span></div>
+                    <nav class="nav" aria-label="Navegación principal">
+                        <button type="button">PARTIDA</button>
+                        <button type="button">MODS</button>
+                        <button type="button">AJUSTES</button>
+                        <button class="update-badge" id="updateBadge" type="button">UPDATE DISPONIBLE</button>
+                    </nav>
+                </header>
+                <div class="content">
+                    <div>
+                        <div class="eyebrow">PARTIDA SELECCIONADA</div>
+                        <h2>Entrá a tu próxima partida.</h2>
+                        <p id="description">Hay una nueva versión del launcher lista para descargar. Abrí Updates para ver qué cambió.</p>
+                        <button class="play" type="button">JUGAR</button>
+                    </div>
+                    <div class="server-card">
+                        <small>ESTADO DEL SERVIDOR</small>
+                        <strong>ONLINE // 24 JUGADORES</strong>
+                        <p>Survival 1.21 · Pack oficial</p>
+                    </div>
+                </div>
+            </article>
+
+            <aside class="controls">
+                <h3>Probar estados</h3>
+                <p>Esto no modifica el launcher. Solo cambia el estado visual del concepto.</p>
+                <button class="state-button" type="button" data-state="available" aria-pressed="true"><b>Actualización disponible</b><span>Badge verde con pulso sutil.</span></button>
+                <button class="state-button" type="button" data-state="downloading" aria-pressed="false"><b>Descargando</b><span>Badge ámbar, sin llamar a instalar.</span></button>
+                <button class="state-button" type="button" data-state="ready" aria-pressed="false"><b>Lista para instalar</b><span>Badge sólido y CTA más urgente.</span></button>
+                <button class="state-button" type="button" data-state="none" aria-pressed="false"><b>Sin actualización</b><span>La Home vuelve a estado normal.</span></button>
+                <div class="note" id="stateNote">Click en la badge → abriría Settings > Updates.</div>
+            </aside>
+        </section>
+    </main>
+
+    <script>
+        const launcher = document.getElementById('launcher')
+        const badge = document.getElementById('updateBadge')
+        const description = document.getElementById('description')
+        const stateNote = document.getElementById('stateNote')
+        const states = {
+            available: {
+                badge: 'UPDATE DISPONIBLE',
+                description: 'Hay una nueva versión del launcher lista para descargar. Abrí Updates para ver qué cambió.',
+                note: 'Click en la badge → abriría Settings > Updates.'
+            },
+            downloading: {
+                badge: 'DESCARGANDO 42%',
+                description: 'La actualización se está descargando en segundo plano. Podés seguir jugando.',
+                note: 'La badge informa progreso sin interrumpir la partida.'
+            },
+            ready: {
+                badge: 'REINICIAR E INSTALAR',
+                description: 'La nueva versión ya está descargada. Solo falta reiniciar el launcher para aplicarla.',
+                note: 'Click en la badge → abriría el CTA de instalación.'
+            },
+            none: {
+                badge: '',
+                description: 'Tu launcher está actualizado. No hay nada pendiente para instalar.',
+                note: 'Sin badge: el estado normal no compite con la acción de jugar.'
+            }
+        }
+
+        document.querySelectorAll('[data-state]').forEach(button => {
+            button.addEventListener('click', () => {
+                const state = button.dataset.state
+                const copy = states[state]
+                launcher.className = `launcher state-${state}`
+                badge.textContent = copy.badge
+                badge.hidden = state === 'none'
+                description.textContent = copy.description
+                stateNote.textContent = copy.note
+                document.querySelectorAll('[data-state]').forEach(item => item.setAttribute('aria-pressed', String(item === button)))
+            })
+        })
+    </script>
+</body>
+</html>

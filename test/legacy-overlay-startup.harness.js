@@ -469,7 +469,8 @@ function testWindowControlContract(){
         activeElement: { blur(){ calls.push('blur') } },
         addEventListener(type, listener){ documentListeners.set(type, listener) },
         getElementsByClassName(name){ return controls[name] || [] },
-        getElementById(){ return null }
+        getElementById(){ return null },
+        querySelector(){ return null }
     }
     const jquery = () => ({ on(){} })
     const sandbox = {

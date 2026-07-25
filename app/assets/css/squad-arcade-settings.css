@@ -223,14 +223,24 @@
 }
 
 #settingsContainer.is-squad-settings-ready #settingsNavUpdate[update] {
-    color: var(--sa-settings-accent-strong);
+    color: #baffc9;
 }
 
 #settingsContainer.is-squad-settings-ready #settingsNavUpdate[update]::after {
-    border-color: var(--sa-settings-accent);
-    background: var(--sa-settings-accent);
-    box-shadow: 0 0 9px rgba(var(--sa-settings-accent-rgb), 0.75);
+    border-color: #57e878;
+    background: #57e878;
+    box-shadow: 0 0 9px rgba(87, 232, 120, 0.75);
     opacity: 1;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavUpdate[update][data-update-state='downloading'] {
+    color: #ffe1a0;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsNavUpdate[update][data-update-state='downloading']::after {
+    border-color: var(--sa-settings-alert);
+    background: var(--sa-settings-alert);
+    box-shadow: 0 0 9px rgba(255, 200, 87, 0.75);
 }
 
 #settingsContainer.is-squad-settings-ready .settingsNavItem:focus-visible {
@@ -414,9 +424,13 @@
 }
 
 #settingsContainer.is-squad-settings-ready #settingsUpdateAvailableIndicator {
-    color: var(--sa-settings-accent-strong);
+    color: #baffc9;
     font-family: monospace;
     letter-spacing: 0.12em;
+}
+
+#settingsContainer.is-squad-settings-ready #settingsUpdateAvailableIndicator[data-update-state='downloading'] {
+    color: #ffe1a0;
 }
 
 #settingsContainer.is-squad-settings-ready .settingsFieldContainer:hover,

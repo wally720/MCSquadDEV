@@ -20,6 +20,7 @@ const overlaySource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'j
 const appMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'app.ejs'), 'utf8')
 const languageSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'lang', 'en_US.toml'), 'utf8')
 const settingsStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'squad-arcade-settings.css'), 'utf8')
+const landingStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'squad-arcade.css'), 'utf8')
 const launcherStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'launcher.css'), 'utf8')
 const settingsVisualSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'squad-arcade-settings.js'), 'utf8')
 const dropinModUtilSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'dropinmodutil.js'), 'utf8')
@@ -934,21 +935,59 @@ function testDoneAfterSave(){
 
 async function testSettingsRoutes(){
     const calls = []
+    const buttonCalls = []
+    const updateInfoCalls = []
+    const ipcCalls = []
+    const updaterLogs = []
     const elements = {
         settingsNavAccount: new FakeElement({ id: 'settingsNavAccount' }),
         settingsNavMods: new FakeElement({ id: 'settingsNavMods' }),
         settingsNavUpdate: new FakeElement({ id: 'settingsNavUpdate' }),
-        settingsUpdateAvailableIndicator: new FakeElement({ id: 'settingsUpdateAvailableIndicator' })
+        settingsUpdateAvailableIndicator: new FakeElement({ id: 'settingsUpdateAvailableIndicator' }),
+        updateBadge: new FakeElement({ id: 'updateBadge', tagName: 'BUTTON' }),
+        updateBrand: new FakeElement({ id: 'updateBrand' })
     }
+    const updateBadgeLabel = new FakeElement()
+    elements.updateBadge.querySelector = selector => selector === '[data-sa-update-label]' ? updateBadgeLabel : null
     const document = { getElementById: id => elements[id] || null }
+    document.querySelector = selector => selector === '[data-sa-update-badge]'
+        ? elements.updateBadge
+        : selector === '.sa-brand' ? elements.updateBrand : null
+    const settingsUpdateButtonStatus = (...args) => buttonCalls.push(args)
     const common = {
         document,
+        isDev: false,
+        ipcRenderer: { send: (...args) => ipcCalls.push(args) },
+        loggerAutoUpdater: {
+            info: (...args) => updaterLogs.push(['info', ...args]),
+            error: (...args) => updaterLogs.push(['error', ...args]),
+            debug: (...args) => updaterLogs.push(['debug', ...args])
+        },
+        process: { platform: 'win32', arch: 'x64' },
+        populateSettingsUpdateInformation(info){
+            updateInfoCalls.push(info)
+            settingsUpdateButtonStatus('Descargando...', true)
+        },
+        settingsUpdateButtonStatus,
+        Lang: {
+            queryJS(key){
+                return {
+                    'uicore.autoUpdate.availableStatus': 'Actualización Disponible',
+                    'uicore.autoUpdate.downloadingStatus': 'Descargando Actualización',
+                    'uicore.autoUpdate.readyStatus': 'Actualización Lista para Instalar',
+                    'uicore.autoUpdate.installNowButton': 'Instalar ahora',
+                    'uicore.autoUpdate.checkingForUpdateButton': 'Comprobando...',
+                    'uicore.autoUpdate.checkForUpdatesButton': 'Buscar actualizaciones'
+                }[key]
+            }
+        },
         async prepareSettings(){ calls.push('prepare') },
         getCurrentView(){ return '#landingContainer' },
         VIEWS: { settings: '#settingsContainer' },
-        switchView(_from, to, _out, _in, onCurrentFade){
+        switchView(_from, to, _out, _in, onCurrentFade, onNextFade){
             calls.push(`switch:${to}`)
             onCurrentFade?.()
+            onNextFade?.()
         },
         settingsNavItemListener(element, fade){ calls.push(`tab:${element.id}:${fade}`) }
     }
@@ -961,22 +1000,94 @@ async function testSettingsRoutes(){
     await open.openSettings('settingsNavMods')
     assert.deepEqual(calls.splice(0), ['prepare', 'switch:#settingsContainer', 'tab:settingsNavMods:false'])
 
-    const update = loadFunctions(uiCoreSource, ['showUpdateUI'], common)
-    update.showUpdateUI({ version: '2.0.0' })
+    await open.openSettings('settingsNavUpdate', true)
+    assert.deepEqual(calls.splice(0), ['prepare', 'switch:#settingsContainer', 'tab:settingsNavUpdate:false'])
+    assert.equal(elements.settingsNavUpdate.focusCalls, 1, 'badge navigation focuses the Updates tab after the view opens')
+
+    const update = loadFunctions(uiCoreSource, ['handleAutoUpdateNotification', 'showUpdateUI', 'setUpdateUIState', 'clearUpdateUI', 'clearTransientUpdateUI', 'setTransientUpdateButtonStatus', 'restoreUpdateCheckButton', 'renderUpdateUI'], common)
+    update.handleAutoUpdateNotification('update-downloaded', { version: '2.0.0' })
     assert.equal(elements.settingsNavUpdate.hasAttribute('update'), true)
     assert.equal(elements.settingsNavUpdate.getAttribute('aria-describedby'), 'settingsUpdateAvailableIndicator')
     assert.equal(elements.settingsUpdateAvailableIndicator.hidden, false)
+    assert.equal(elements.updateBadge.hidden, false)
+    assert.equal(elements.updateBadge.getAttribute('data-update-state'), 'ready')
+    assert.equal(buttonCalls.length, 1)
+    assert.equal(buttonCalls[0][0], 'Instalar ahora')
+    assert.equal(buttonCalls[0][1], false)
+    assert.equal(typeof buttonCalls[0][2], 'function')
+
+    update.handleAutoUpdateNotification('checking-for-update')
+    assert.equal(buttonCalls.length, 1, 'checking-for-update does not disable the ready install CTA')
+    update.handleAutoUpdateNotification('update-not-available')
+    assert.equal(buttonCalls.length, 1, 'update-not-available does not replace the ready install CTA')
+    assert.equal(elements.updateBadge.hidden, false, 'update-not-available preserves a downloaded update')
+    assert.equal(elements.updateBadge.getAttribute('data-update-state'), 'ready', 'ready CTA remains available after update-not-available')
+
+    update.handleAutoUpdateNotification('realerror', { code: 'ERR_GENERIC' })
+    assert.equal(elements.updateBadge.getAttribute('data-update-state'), 'ready', 'realerror preserves the ready update state')
+    assert.equal(buttonCalls.length, 1, 'realerror after checking keeps the install CTA available')
+    assert.equal(updaterLogs.some(log => log[0] === 'error' && log[1] === 'Error during update check..'), true, 'realerror keeps unexpected-error logging')
+
+    update.clearUpdateUI()
+    buttonCalls.length = 0
+    ipcCalls.length = 0
+    update.handleAutoUpdateNotification('checking-for-update')
+    assert.deepEqual(buttonCalls, [['Comprobando...', true]], 'checking from normal disables the checking CTA')
+    update.handleAutoUpdateNotification('realerror', { code: 'ERR_GENERIC' })
+    assert.equal(elements.updateBadge.hidden, true, 'realerror from normal clears the badge')
+    assert.equal(buttonCalls[1][0], 'Buscar actualizaciones')
+    assert.equal(buttonCalls[1][1], false, 'realerror from normal restores an enabled retry CTA')
+    buttonCalls[1][2]()
+    assert.deepEqual(ipcCalls, [['autoUpdateAction', 'checkForUpdate']], 'retry handler sends a new update check')
+    assert.deepEqual(buttonCalls[2], ['Comprobando...', true], 'retry handler marks the second check as pending')
+    update.handleAutoUpdateNotification('realerror', { code: 'ERR_GENERIC' })
+    assert.equal(buttonCalls[3][0], 'Buscar actualizaciones', 'second realerror restores retry')
+    assert.equal(buttonCalls[3][1], false)
+    assert.equal(typeof buttonCalls[3][2], 'function')
+
+    update.handleAutoUpdateNotification('update-available', { version: '2.1.0', releaseName: 'New release', releaseNotes: 'Notes' })
+    assert.equal(elements.updateBadge.getAttribute('data-update-state'), 'downloading', 'a new update can replace ready')
+    assert.equal(updateInfoCalls[0].version, '2.1.0')
+    assert.deepEqual(buttonCalls[4], ['Descargando...', true], 'a valid update may replace the retry CTA')
+    update.handleAutoUpdateNotification('realerror', { code: 'ERR_GENERIC' })
+    assert.equal(elements.updateBadge.hidden, true, 'realerror clears a transient update badge')
+    assert.equal(elements.updateBadge.hasAttribute('data-update-state'), false)
+    assert.equal(buttonCalls[5][0], 'Buscar actualizaciones')
+    assert.equal(buttonCalls[5][1], false, 'realerror from downloading restores an enabled retry CTA')
+    assert.equal(typeof buttonCalls[5][2], 'function', 'retry CTA has a handler')
     assert.deepEqual(calls, [], 'updater marks the existing Settings action without synthetic navigation')
     assert.match(settingsMarkup, /id="settingsUpdateAvailableIndicator"[^>]*role="status"[^>]*aria-live="polite"[^>]*hidden/)
-    assert.doesNotMatch(landingMarkup, /image_seal_container|updateAvailableTooltip/)
+    assert.match(landingMarkup, /data-sa-update-badge[^>]*data-sa-open="settings"[^>]*data-sa-settings-tab="settingsNavUpdate"/)
+    assert.match(landingMarkup, /aria-label="<%- lang\('landing\.updateAvailableTooltip'\) %>"/)
+    assert.match(landingMarkup, /data-sa-update-label><%- lang\('landing\.updateAvailableTooltip'\) %><\/span>/)
+    assert.match(squadArcadeSource, /openSettings\(settingsTab, settingsTab != null\)/)
+    assert.doesNotMatch(landingMarkup, /ACTUALIZACIONES|aria-label="Actualizaciones del launcher"/)
+    assert.doesNotMatch(landingMarkup, /image_seal_container/)
 }
 
 function testUpdaterRuntimeContract(){
+    assert.match(uiCoreSource, /function handleAutoUpdateNotification\(arg, info\)/, 'updater switch is exposed as a named handler')
+    assert.match(uiCoreSource, /ipcRenderer\.on\('autoUpdateNotification', \(event, arg, info\) => \{\s*handleAutoUpdateNotification\(arg, info\)\s*\}\)/, 'IPC listener delegates to the named handler')
     for(const event of ['checking-for-update', 'update-available', 'update-downloaded', 'update-not-available', 'ready', 'realerror']){
         assert.match(uiCoreSource, new RegExp(`case ['"]${event}['"]`), `${event} remains handled`)
     }
     assert.match(uiCoreSource, /populateSettingsUpdateInformation\(info\)/, 'available update details still populate Settings')
+    assert.match(uiCoreSource, /Lang\.queryJS\(labelKeys\[updateUIState\]\)/, 'update states use the language system')
+    assert.match(uiCoreSource, /available:\s*'uicore\.autoUpdate\.availableStatus'/, 'available state has a language key')
+    assert.match(uiCoreSource, /downloading:\s*'uicore\.autoUpdate\.downloadingStatus'/, 'downloading state has a language key')
+    assert.match(uiCoreSource, /ready:\s*'uicore\.autoUpdate\.readyStatus'/, 'ready state has a language key')
+    assert.match(languageSource, /\[js\.uicore\.autoUpdate\][^]*availableStatus\s*=\s*"Actualización Disponible"/, 'available language key exists')
+    assert.match(languageSource, /\[js\.uicore\.autoUpdate\][^]*downloadingStatus\s*=\s*"Descargando Actualización"/, 'downloading language key exists')
+    assert.match(languageSource, /\[js\.uicore\.autoUpdate\][^]*readyStatus\s*=\s*"Actualización Lista para Instalar"/, 'ready language key exists')
+    assert.match(uiCoreSource, /darwindownload[^]*}\s*showUpdateUI\(info\)/, 'available updates show on every platform')
     assert.match(uiCoreSource, /settingsUpdateButtonStatus\([^]*installUpdateNow[^]*\)/, 'downloaded updates retain the install action')
+    assert.match(uiCoreSource, /showUpdateUI\(info, 'ready'\)/, 'downloaded updates expose the install-pending state')
+    assert.match(uiCoreSource, /case ['"]update-not-available['"][^]*clearTransientUpdateUI\(\)/, 'not-available updates clear only transient signals')
+    assert.match(uiCoreSource, /case ['"]checking-for-update['"][^]*setTransientUpdateButtonStatus/, 'checking updates respect the ready install CTA')
+    assert.match(uiCoreSource, /case ['"]update-not-available['"][^]*setTransientUpdateButtonStatus/, 'not-available updates respect the ready install CTA')
+    assert.match(uiCoreSource, /case ['"]realerror['"][^]*clearTransientUpdateUI\(\)/, 'updater errors clear only transient signals')
+    assert.match(uiCoreSource, /function clearTransientUpdateUI\(\)[^]*updateUIState !== ['"]ready['"]/, 'ready state survives transient updater outcomes')
+    assert.match(uiCoreSource, /function setTransientUpdateButtonStatus\([^]*updateUIState !== ['"]ready['"][^]*settingsUpdateButtonStatus/, 'transient updater events cannot disable a ready install CTA')
     assert.match(uiCoreSource, /setInterval\([^]*checkForUpdate[^]*1800000\)/, 'periodic update checking remains active')
     assert.match(uiCoreSource, /loggerAutoUpdater\.error\('Error during update check\.\.'/ , 'unexpected updater failures remain logged')
 }
@@ -1017,6 +1128,14 @@ function testVisualAssetContract(){
         .map(line => line.trim())
         .filter(line => line.endsWith('{') && !line.startsWith('@'))
     assert.ok(selectorLines.length > 0)
+    assert.match(landingStyles, /sa-brand\[data-update-state\].*img/)
+    assert.match(landingStyles, /prefers-reduced-motion/)
+    assert.match(landingStyles, /sa-update-badge\[data-update-state='downloading'\]/)
+    const compactHomeStyles = landingStyles.slice(landingStyles.indexOf('@media (max-width: 570px)'))
+    assert.match(compactHomeStyles, /sa-update-badge[^}]*box-sizing:\s*border-box|sa-update-badge[^}]*right:\s*4px/, 'compact badge stays inside the brand column')
+    assert.match(compactHomeStyles, /sa-update-badge[^}]*border-width:\s*2px/, 'compact badge accounts for its border')
+    assert.match(compactHomeStyles, /sa-update-badge[^}]*text-overflow:\s*ellipsis|sa-update-badge \[data-sa-update-label\][^}]*text-overflow:\s*ellipsis/, 'long compact badge labels are clipped')
+    assert.match(compactHomeStyles, /sa-marquee nav button[^}]*min-width:\s*0[^}]*flex:\s*1 1 0/, 'compact navigation can shrink without overlapping the badge')
     assert.equal(selectorLines.every(line => line.startsWith('#settingsContainer.is-squad-settings-ready')), true, 'all Settings selectors are ready-namespaced')
     assert.match(settingsStyles, /pointer-events:\s*none/, 'decorative layers cannot block clicks')
     assert.doesNotMatch(settingsStyles, /@keyframes|animation\s*:/, 'WU2 does not add motion')

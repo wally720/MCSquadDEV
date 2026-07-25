@@ -268,6 +268,9 @@ selectAnotherAccountButton = "Seleccionar Otra Cuenta"
 checkingForUpdateButton = "Buscando Actualizaciones..."
 installNowButton = "Instalar Ahora"
 checkForUpdatesButton = "Buscar Actualizaciones"
+availableStatus = "Actualización Disponible"
+downloadingStatus = "Descargando Actualización"
+readyStatus = "Actualización Lista para Instalar"
 
 [js.auth.microsoft.error]
 noProfileTitle = "Error Durante el Inicio de Sesión:<br>Perfil No Configurado"

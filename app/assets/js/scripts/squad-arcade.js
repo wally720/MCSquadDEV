@@ -232,7 +232,7 @@
         }
     }
 
-    async function openSettings(tabId){
+    async function openSettings(tabId, focusTab = false){
         await prepareSettings()
         switchView(getCurrentView(), VIEWS.settings, 500, 500, () => {
             if(tabId != null){
@@ -240,6 +240,10 @@
                 if(tab != null){
                     settingsNavItemListener(tab, false)
                 }
+            }
+        }, () => {
+            if(focusTab){
+                document.getElementById(tabId)?.focus()
             }
         })
     }
@@ -373,7 +377,8 @@
                 } else if(target === 'account'){
                     await openSettings('settingsNavAccount')
                 } else {
-                    await openSettings()
+                    const settingsTab = button.dataset.saSettingsTab
+                    await openSettings(settingsTab, settingsTab != null)
                 }
             })
         })
