@@ -26,6 +26,7 @@ const dropinModUtilSource = fs.readFileSync(path.join(projectRoot, 'app', 'asset
 const processBuilderSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'processbuilder.js'), 'utf8')
 const settingsModsStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'squad-arcade-settings-mods.css'), 'utf8')
 const settingsModsVisualSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'squad-arcade-settings-mods.js'), 'utf8')
+const SafeDom = require('../app/assets/js/safedom')
 
 function extractFunction(source, name){
     const signature = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`)
@@ -2698,7 +2699,8 @@ function testMicrosoftOnlyAccountRendering(){
                 getAuthAccounts: () => runtimeConfig.getAuthAccounts(),
                 getSelectedAccount: () => runtimeConfig.getSelectedAccount()
             },
-            Lang: { queryJS: key => key }
+            Lang: { queryJS: key => key },
+            SettingsSafeDom: SafeDom
         },
         'const settingsCurrentMicrosoftAccounts = globalThis.__accountContainer',
     )
@@ -2716,12 +2718,104 @@ function testMicrosoftOnlyAccountRendering(){
         ['populateAccountListings'],
         {
             ConfigManager: { getAuthAccounts: () => runtimeConfig.getAuthAccounts() },
-            document: { getElementById: () => overlayContainer }
+            document: { getElementById: () => overlayContainer },
+            OverlaySafeDom: SafeDom
         }
     )
     overlayHarness.populateAccountListings()
     assert.equal((overlayContainer.innerHTML.match(/mc-heads\.net/g) || []).length, 1)
     assert.doesNotMatch(overlayContainer.innerHTML, /legacy-mojang-uuid|Legacy Player|incomplete-microsoft|Incomplete Player/, 'account picker only receives usable Microsoft records')
+
+    const malicious = {
+        ...validMicrosoft,
+        uuid: 'uuid" onerror="globalThis.injected=true<&\'',
+        displayName: '<img src=x onerror="globalThis.injected=true"> & \'Player\''
+    }
+    const maliciousConfig = loadConfigManager({ accounts: [malicious], selectedUUID: malicious.uuid }).ConfigManager
+    const maliciousContainer = { innerHTML: '' }
+    const maliciousHarness = loadFunctions(
+        settingsSource,
+        ['populateAuthAccounts'],
+        {
+            __accountContainer: maliciousContainer,
+            ConfigManager: {
+                getAuthAccounts: () => maliciousConfig.getAuthAccounts(),
+                getSelectedAccount: () => maliciousConfig.getSelectedAccount()
+            },
+            Lang: { queryJS: key => key },
+            SettingsSafeDom: SafeDom
+        },
+        'const settingsCurrentMicrosoftAccounts = globalThis.__accountContainer',
+    )
+    assert.doesNotThrow(() => maliciousHarness.populateAuthAccounts())
+    assert.doesNotMatch(maliciousContainer.innerHTML, /<img src=x|onerror="globalThis\.injected=true"/, 'persisted account fields cannot inject executable markup')
+    assert.match(maliciousContainer.innerHTML, /&lt;img src=x onerror=&quot;globalThis\.injected=true&quot;&gt; &amp; &#39;Player&#39;/)
+    assert.match(maliciousContainer.innerHTML, /uuid%22%20onerror%3D%22globalThis\.injected%3Dtrue%3C%26%27/, 'skin URL encodes the persisted UUID')
+
+    const maliciousOverlayContainer = { innerHTML: '' }
+    const maliciousOverlayHarness = loadFunctions(
+        overlaySource,
+        ['populateAccountListings'],
+        {
+            ConfigManager: { getAuthAccounts: () => maliciousConfig.getAuthAccounts() },
+            document: { getElementById: () => maliciousOverlayContainer },
+            OverlaySafeDom: SafeDom
+        }
+    )
+    maliciousOverlayHarness.populateAccountListings()
+    assert.doesNotMatch(maliciousOverlayContainer.innerHTML, /<img src=x|onerror="globalThis\.injected=true"/, 'account picker fields cannot inject executable markup')
+    assert.match(maliciousOverlayContainer.innerHTML, /&lt;img src=x onerror=&quot;globalThis\.injected=true&quot;&gt; &amp; &#39;Player&#39;/)
+    assert.match(maliciousOverlayContainer.innerHTML, /uuid%22%20onerror%3D%22globalThis\.injected%3Dtrue%3C%26%27/, 'account picker head URL encodes the persisted UUID')
+
+    const encodedUuid = maliciousOverlayContainer.innerHTML.match(/uuid="([^"]+)"/)[1]
+    const renderedUuid = encodedUuid
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', '\'')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&amp;', '&')
+    const firstListing = new FakeElement({ tagName: 'BUTTON', classes: ['accountListing'] })
+    const maliciousListing = new FakeElement({ tagName: 'BUTTON', classes: ['accountListing'] })
+    firstListing.setAttribute('selected', '')
+    maliciousListing.setAttribute('uuid', renderedUuid)
+    const { setAccountListingHandlers } = loadFunctions(overlaySource, ['setAccountListingHandlers'], {
+        document: {
+            activeElement: { blur(){} },
+            getElementsByClassName: () => [firstListing, maliciousListing]
+        }
+    })
+    setAccountListingHandlers()
+    maliciousListing.click()
+    assert.equal(firstListing.hasAttribute('selected'), false, 'account picker navigation clears the previous selection')
+    assert.equal(maliciousListing.hasAttribute('selected'), true, 'account picker navigation selects the requested account')
+    assert.equal(maliciousListing.getAttribute('uuid'), malicious.uuid, 'safe attribute rendering preserves the UUID used by selection')
+
+    const selectionCalls = []
+    const { confirmAccountSelection } = loadFunctions(overlaySource, ['confirmAccountSelection'], {
+        ConfigManager: {
+            save: () => selectionCalls.push('save'),
+            setSelectedAccount: uuid => {
+                selectionCalls.push(['select', uuid])
+                return malicious
+            }
+        },
+        document: { getElementsByClassName: () => [firstListing, maliciousListing] },
+        getCurrentView: () => 'landing',
+        prepareSettings: () => selectionCalls.push('prepare'),
+        toggleOverlay: state => selectionCalls.push(['overlay', state]),
+        updateSelectedAccount: account => selectionCalls.push(['update', account.uuid]),
+        validateSelectedAccount: () => selectionCalls.push('validate'),
+        VIEWS: { settings: 'settings' }
+    })
+    return confirmAccountSelection().then(() => {
+        assert.deepEqual(selectionCalls, [
+            ['select', malicious.uuid],
+            'save',
+            ['update', malicious.uuid],
+            ['overlay', false],
+            'validate'
+        ], 'confirming the navigated account preserves the decoded UUID through the existing selection flow')
+    })
 }
 
 function createAccountButton(uuid, selected = false){

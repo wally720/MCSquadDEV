@@ -1,3 +1,5 @@
+const OverlaySafeDom = require('./assets/js/safedom')
+
 /**
  * Script for overlay.ejs
  */
@@ -190,7 +192,7 @@ document.getElementById('serverSelectConfirm').addEventListener('click', async (
     }
 })
 
-document.getElementById('accountSelectConfirm').addEventListener('click', async () => {
+async function confirmAccountSelection(){
     const listings = document.getElementsByClassName('accountListing')
     for(let i=0; i<listings.length; i++){
         if(listings[i].hasAttribute('selected')){
@@ -216,7 +218,9 @@ document.getElementById('accountSelectConfirm').addEventListener('click', async 
         toggleOverlay(false)
         validateSelectedAccount()
     }
-})
+}
+
+document.getElementById('accountSelectConfirm').addEventListener('click', confirmAccountSelection)
 
 // Bind server select cancel button.
 document.getElementById('serverSelectCancel').addEventListener('click', () => {
@@ -304,9 +308,12 @@ function populateAccountListings(){
     const accounts = Array.from(Object.keys(accountsObj), v=>accountsObj[v])
     let htmlString = ''
     for(let i=0; i<accounts.length; i++){
-        htmlString += `<button class="accountListing" uuid="${accounts[i].uuid}" ${i===0 ? 'selected' : ''}>
-            <img src="https://mc-heads.net/head/${accounts[i].uuid}/40">
-            <div class="accountListingName">${accounts[i].displayName}</div>
+        const escapedUuid = OverlaySafeDom.escapeHtml(accounts[i].uuid)
+        const escapedDisplayName = OverlaySafeDom.escapeHtml(accounts[i].displayName)
+        const encodedUuid = OverlaySafeDom.encodeUrlSegment(accounts[i].uuid)
+        htmlString += `<button class="accountListing" uuid="${escapedUuid}" ${i===0 ? 'selected' : ''}>
+            <img src="https://mc-heads.net/head/${encodedUuid}/40">
+            <div class="accountListingName">${escapedDisplayName}</div>
         </button>`
     }
     document.getElementById('accountSelectListScrollable').innerHTML = htmlString

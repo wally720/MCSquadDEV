@@ -4,6 +4,7 @@ const semver = require('semver')
 
 const DropinModUtil  = require('./assets/js/dropinmodutil')
 const { MSFT_OPCODE, MSFT_REPLY_TYPE, MSFT_ERROR } = require('./assets/js/ipcconstants')
+const SettingsSafeDom = require('./assets/js/safedom')
 
 const settingsState = {
     invalid: new Set()
@@ -606,20 +607,23 @@ function populateAuthAccounts(){
 
     authKeys.forEach((val) => {
         const acc = authAccounts[val]
+        const escapedUuid = SettingsSafeDom.escapeHtml(acc.uuid)
+        const escapedDisplayName = SettingsSafeDom.escapeHtml(acc.displayName)
+        const encodedUuid = SettingsSafeDom.encodeUrlSegment(acc.uuid)
 
-        const accHtml = `<div class="settingsAuthAccount" uuid="${acc.uuid}">
+        const accHtml = `<div class="settingsAuthAccount" uuid="${escapedUuid}">
             <div class="settingsAuthAccountLeft">
-                <img class="settingsAuthAccountImage" alt="${acc.displayName}" src="https://mc-heads.net/body/${acc.uuid}/60">
+                <img class="settingsAuthAccountImage" alt="${escapedDisplayName}" src="https://mc-heads.net/body/${encodedUuid}/60">
             </div>
             <div class="settingsAuthAccountRight">
                 <div class="settingsAuthAccountDetails">
                     <div class="settingsAuthAccountDetailPane">
                         <div class="settingsAuthAccountDetailTitle">${Lang.queryJS('settings.authAccountPopulate.username')}</div>
-                        <div class="settingsAuthAccountDetailValue">${acc.displayName}</div>
+                        <div class="settingsAuthAccountDetailValue">${escapedDisplayName}</div>
                     </div>
                     <div class="settingsAuthAccountDetailPane">
                         <div class="settingsAuthAccountDetailTitle">${Lang.queryJS('settings.authAccountPopulate.uuid')}</div>
-                        <div class="settingsAuthAccountDetailValue">${acc.uuid}</div>
+                        <div class="settingsAuthAccountDetailValue">${escapedUuid}</div>
                     </div>
                 </div>
                 <div class="settingsAuthAccountActions">
