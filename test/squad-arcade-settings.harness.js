@@ -5,15 +5,21 @@ const vm = require('node:vm')
 
 const projectRoot = path.join(__dirname, '..')
 const settingsSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'settings.js'), 'utf8')
+const configManagerSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'configmanager.js'), 'utf8')
+const authManagerSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'authmanager.js'), 'utf8')
 const settingsMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'settings.ejs'), 'utf8')
+const loginOptionsMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'loginOptions.ejs'), 'utf8')
+const loginOptionsSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'loginOptions.js'), 'utf8')
 const landingMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'landing.ejs'), 'utf8')
 const landingSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'landing.js'), 'utf8')
 const squadArcadeSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'squad-arcade.js'), 'utf8')
 const uiCoreSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'uicore.js'), 'utf8')
 const uiBinderSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'uibinder.js'), 'utf8')
+const overlaySource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'overlay.js'), 'utf8')
 const appMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'app.ejs'), 'utf8')
 const languageSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'lang', 'en_US.toml'), 'utf8')
 const settingsStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'squad-arcade-settings.css'), 'utf8')
+const launcherStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'launcher.css'), 'utf8')
 const settingsVisualSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'squad-arcade-settings.js'), 'utf8')
 const dropinModUtilSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'dropinmodutil.js'), 'utf8')
 const processBuilderSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'processbuilder.js'), 'utf8')
@@ -91,6 +97,171 @@ function loadFunctions(source, names, context = {}, prelude = ''){
     const exports = names.map(name => `${name}`).join(', ')
     vm.runInContext(`${prelude}\n${functions}\nglobalThis.__sut = { ${exports} }`, sandbox)
     return { context: sandbox, ...sandbox.__sut }
+}
+
+function loadConfigManager(options = {}){
+    const {
+        accounts = [],
+        authenticationDatabase,
+        clientToken = 'legacy-client-token',
+        javaConfig = {},
+        modConfigurations = [],
+        selectedUUID
+    } = options
+    const generatedConfig = {
+        settings: {
+            game: { resWidth: 1280, resHeight: 720, fullscreen: false, autoConnect: true, launchDetached: true },
+            launcher: { allowPrerelease: false, dataDirectory: 'data', theme: 'overworld', showIntro: true }
+        },
+        clientToken,
+        selectedServer: null,
+        selectedAccount: selectedUUID,
+        authenticationDatabase: authenticationDatabase === undefined
+            ? Object.fromEntries(accounts.map(account => [account.uuid, { ...account }]))
+            : authenticationDatabase,
+        modConfigurations,
+        javaConfig
+    }
+    const initialConfig = Object.hasOwn(options, 'initialConfig') ? options.initialConfig : generatedConfig
+    let persistedConfig = structuredClone(initialConfig)
+    const events = []
+    const fsStub = {
+        existsSync: () => true,
+        ensureDirSync: () => {},
+        moveSync: () => {},
+        readFileSync: () => JSON.stringify(persistedConfig),
+        writeFileSync: (_file, data) => {
+            events.push('save')
+            persistedConfig = JSON.parse(data)
+        }
+    }
+    const logger = {
+        info: () => {},
+        warn: () => {},
+        error: () => {}
+    }
+    const configModule = { exports: {} }
+    vm.runInNewContext(configManagerSource, {
+        console,
+        exports: configModule.exports,
+        module: configModule,
+        process,
+        require(name){
+            if(name === 'fs-extra') return fsStub
+            if(name === 'helios-core') return { LoggerUtil: { getLogger: () => logger } }
+            if(name === 'os') return require('node:os')
+            if(name === 'path') return path
+            if(name === '@electron/remote') return { app: { getPath: () => path.join('test-data', 'launcher') } }
+            throw new Error(`Unexpected ConfigManager module: ${name}`)
+        }
+    }, { filename: 'configmanager.js' })
+    const ConfigManager = configModule.exports
+    ConfigManager.load()
+
+    return {
+        ConfigManager,
+        events,
+        getPersistedConfig: () => structuredClone(persistedConfig)
+    }
+}
+
+function loadAuthManager(currentAccount){
+    const calls = []
+    const ConfigManager = {
+        getSelectedAccount: () => currentAccount,
+        isMicrosoftAuthAccountUsable: account => account?.type === 'microsoft'
+            && typeof account.uuid === 'string'
+            && typeof account.username === 'string'
+            && typeof account.displayName === 'string'
+            && typeof account.accessToken === 'string'
+            && Number.isFinite(account.expiresAt)
+            && typeof account.microsoft?.access_token === 'string'
+            && typeof account.microsoft?.refresh_token === 'string'
+            && Number.isFinite(account.microsoft?.expires_at),
+        updateMicrosoftAuthAccount: (...args) => calls.push(['update', ...args]),
+        save: () => calls.push(['save'])
+    }
+    const success = data => ({ responseStatus: 'success', data })
+    const MicrosoftAuth = {
+        getAccessToken: async (...args) => {
+            calls.push(['access', ...args])
+            return success({ access_token: 'new-ms-access', refresh_token: 'new-ms-refresh', expires_in: 3600 })
+        },
+        getXBLToken: async token => {
+            calls.push(['xbl', token])
+            return success({ token: 'xbl' })
+        },
+        getXSTSToken: async token => {
+            calls.push(['xsts', token])
+            return success({ token: 'xsts' })
+        },
+        getMCAccessToken: async token => {
+            calls.push(['minecraft', token])
+            return success({ access_token: 'new-mc-access', expires_in: 1800 })
+        },
+        getMCProfile: async token => {
+            calls.push(['profile', token])
+            return success({ id: currentAccount.uuid, name: currentAccount.displayName })
+        }
+    }
+    const authModule = { exports: {} }
+    vm.runInNewContext(authManagerSource, {
+        console,
+        exports: authModule.exports,
+        module: authModule,
+        require(name){
+            if(name === './configmanager') return ConfigManager
+            if(name === 'helios-core') return { LoggerUtil: { getLogger: () => ({ error(){} }) } }
+            if(name === 'helios-core/common') return { RestResponseStatus: { ERROR: 'error' } }
+            if(name === 'helios-core/microsoft') return {
+                MicrosoftAuth,
+                MicrosoftErrorCode: { NO_PROFILE: 1, NO_XBOX_ACCOUNT: 2, XBL_BANNED: 3, UNDER_18: 4, UNKNOWN: 5 }
+            }
+            if(name === './ipcconstants') return { AZURE_CLIENT_ID: 'azure-client' }
+            if(name === './langloader') return { queryJS: key => key }
+            throw new Error(`Unexpected AuthManager module: ${name}`)
+        }
+    }, { filename: 'authmanager.js' })
+    return { AuthManager: authModule.exports, calls }
+}
+
+function loadProcessBuilder(){
+    const ConfigManager = {
+        getInstanceDirectory: () => 'instance',
+        getCommonDirectory: () => 'common',
+        getMaxRAM: () => '4G',
+        getMinRAM: () => '2G',
+        getJVMOptions: () => [],
+        getFullscreen: () => false,
+        getGameWidth: () => 1280,
+        getGameHeight: () => 720,
+        getAutoConnect: () => false
+    }
+    const processBuilderModule = { exports: {} }
+    vm.runInNewContext(processBuilderSource, {
+        console,
+        exports: processBuilderModule.exports,
+        module: processBuilderModule,
+        process,
+        require(name){
+            if(name === './configmanager') return ConfigManager
+            if(name === 'adm-zip') return class AdmZip {}
+            if(name === 'child_process') return {}
+            if(name === 'crypto') return {}
+            if(name === 'fs-extra') return {}
+            if(name === 'helios-core') return { LoggerUtil: { getLogger: () => ({ info(){}, warn(){} }) } }
+            if(name === 'helios-core/common') return {
+                getMojangOS: () => 'windows',
+                isLibraryCompatible: () => true,
+                mcVersionAtLeast: () => true
+            }
+            if(name === 'helios-distribution-types') return { Type: { Fabric: 'fabric', Library: 'library', LiteLoader: 'liteloader' } }
+            if(name === 'os') return require('node:os')
+            if(name === 'path') return path
+            throw new Error(`Unexpected ProcessBuilder module: ${name}`)
+        }
+    }, { filename: 'processbuilder.js' })
+    return processBuilderModule.exports
 }
 
 function loadDropinModUtil(fsStub, electronStub = { ipcRenderer: blockedBoundary('IPC'), shell: blockedBoundary('shell') }, consoleStub = console){
@@ -2331,8 +2502,348 @@ function testLegacyFallbackPresence(){
     assert.match(settingsStyles, /^#settingsContainer\.is-squad-settings-ready/, 'removing controller or CSS leaves legacy selectors untouched')
 }
 
+function testRetiredMojangLoginContract(){
+    assert.equal(fs.existsSync(path.join(projectRoot, 'app', 'login.ejs')), false, 'retired Mojang credential form stays deleted')
+    assert.equal(fs.existsSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'login.js')), false, 'retired Mojang credential controller stays deleted')
+    assert.doesNotMatch(appMarkup, /include\(['"]login['"]\)/, 'app shell does not include the retired credential form')
+    assert.doesNotMatch(uiBinderSource, /login:\s*['"]#loginContainer['"]|loginUsername|validateEmail/, 'view routing has no retired Mojang form bindings')
+    assert.doesNotMatch(`${loginOptionsMarkup}\n${loginOptionsSource}\n${settingsMarkup}\n${settingsSource}`, /loginOptionMojang|settingsAddMojangAccount|settingsCurrentMojangAccounts|VIEWS\.login(?!Options)/, 'active account surfaces expose only Microsoft sign-in')
+    assert.doesNotMatch(loginOptionsSource, /loginOptionsCancellable/, 'dead Mojang-era cancellation state stays retired')
+    assert.doesNotMatch(launcherStyles, /Login View \(login\.ejs\)|#loginContainer|#loginForm|#loginButton|\.loginField|#checkmarkContainer|\.loginCheckmark|\.circle-loader/, 'retired credential form has no shared CSS consumers')
+    assert.doesNotMatch(authManagerSource, /helios-core\/mojang|MojangRestAPI|MojangErrorCode|addMojangAccount|removeMojangAccount|validateSelectedMojangAccount|auth\.mojang/, 'AuthManager has no Mojang account dependency')
+    assert.doesNotMatch(configManagerSource, /addMojangAuthAccount|updateMojangAuthAccount|removeAuthAccountPersisted|getClientToken|setClientToken/, 'ConfigManager exposes no Mojang account API')
+    assert.doesNotMatch(settingsSource, /Mojang|mojang|acc\.type\s*===?\s*['"]microsoft['"]/, 'Settings has no Mojang branch')
+    assert.doesNotMatch(`${settingsSource}\n${overlaySource}\n${squadArcadeSource}`, /account\?*\.type\s*===?\s*['"]microsoft['"]|\.filter\([^\n]*type\s*===?\s*['"]microsoft['"]/, 'account surfaces delegate Microsoft eligibility to ConfigManager')
+    assert.doesNotMatch(uiBinderSource, /Mojang|mojang|selectedAcc\.type/, 'account validation has no Mojang recovery branch')
+    assert.doesNotMatch(processBuilderSource, /authUser\.type|['"]mojang['"]/, 'launch arguments are Microsoft-only')
+    assert.doesNotMatch(languageSource, /auth\.mojang|Cuenta de Mojang|cuenta Mojang/i, 'locales advertise no Mojang account support')
+    assert.match(authManagerSource, /MicrosoftAuth/)
+    assert.match(authManagerSource, /exports\.addMicrosoftAccount/)
+    assert.match(authManagerSource, /exports\.removeMicrosoftAccount/)
+    assert.match(authManagerSource, /return await validateSelectedMicrosoftAccount\(\)/)
+}
+
+function testMicrosoftOnlyAccountRendering(){
+    const container = { innerHTML: '' }
+    const validMicrosoft = {
+        uuid: 'microsoft-uuid',
+        type: 'microsoft',
+        username: 'Microsoft Player',
+        displayName: 'Microsoft Player',
+        accessToken: 'mc-access',
+        expiresAt: Date.now() + 60_000,
+        microsoft: { access_token: 'ms-access', refresh_token: 'ms-refresh', expires_at: Date.now() + 60_000 }
+    }
+    const legacy = { uuid: 'legacy-mojang-uuid', displayName: 'Legacy Player', type: 'mojang' }
+    const incompleteMicrosoft = { uuid: 'incomplete-microsoft', displayName: 'Incomplete Player', type: 'microsoft' }
+    const runtimeConfig = loadConfigManager({
+        accounts: [legacy, incompleteMicrosoft, validMicrosoft],
+        selectedUUID: legacy.uuid
+    }).ConfigManager
+    const { populateAuthAccounts } = loadFunctions(
+        settingsSource,
+        ['populateAuthAccounts'],
+        {
+            __accountContainer: container,
+            ConfigManager: {
+                getAuthAccounts: () => runtimeConfig.getAuthAccounts(),
+                getSelectedAccount: () => runtimeConfig.getSelectedAccount()
+            },
+            Lang: { queryJS: key => key }
+        },
+        'const settingsCurrentMicrosoftAccounts = globalThis.__accountContainer',
+    )
+    assert.doesNotThrow(() => populateAuthAccounts())
+    assert.match(container.innerHTML, /microsoft-uuid/, 'existing Microsoft rendering is preserved')
+    assert.doesNotMatch(container.innerHTML, /legacy-mojang-uuid|Legacy Player|incomplete-microsoft|Incomplete Player/, 'opaque and incomplete accounts are not rendered')
+    assert.equal((container.innerHTML.match(/mc-heads\.net/g) || []).length, 1)
+    assert.match(settingsMarkup, /id="settingsCurrentMicrosoftAccounts"/)
+    assert.match(settingsMarkup, /lang\('settings\.microsoftAccount'\)/)
+    assert.doesNotMatch(`${settingsMarkup}\n${settingsSource}`, /settingsCurrentMojangAccounts|mojangAuthAccountStr/)
+
+    const overlayContainer = { innerHTML: '' }
+    const overlayHarness = loadFunctions(
+        overlaySource,
+        ['populateAccountListings'],
+        {
+            ConfigManager: { getAuthAccounts: () => runtimeConfig.getAuthAccounts() },
+            document: { getElementById: () => overlayContainer }
+        }
+    )
+    overlayHarness.populateAccountListings()
+    assert.equal((overlayContainer.innerHTML.match(/mc-heads\.net/g) || []).length, 1)
+    assert.doesNotMatch(overlayContainer.innerHTML, /legacy-mojang-uuid|Legacy Player|incomplete-microsoft|Incomplete Player/, 'account picker only receives usable Microsoft records')
+}
+
+function createAccountButton(uuid, selected = false){
+    const parent = new FakeElement({ classes: ['settingsAuthAccount'] })
+    parent.setAttribute('uuid', uuid)
+    const button = new FakeElement({ tagName: 'BUTTON', classes: ['settingsAuthAccountSelect'] })
+    button.closest = () => parent
+    if(selected) button.setAttribute('selected', '')
+    return { button, parent }
+}
+
+function testMicrosoftAccountSelection(){
+    const firstMicrosoft = createAccountButton('microsoft-uuid-1', true)
+    const secondMicrosoft = createAccountButton('microsoft-uuid-2')
+    const selected = []
+    const { bindAuthAccountSelect } = loadFunctions(settingsSource, ['bindAuthAccountSelect'], {
+        document: { getElementsByClassName: () => [firstMicrosoft.button, secondMicrosoft.button] },
+        Lang: { queryJS: key => key },
+        setSelectedAccount: uuid => selected.push(uuid)
+    })
+
+    bindAuthAccountSelect()
+    secondMicrosoft.button.click()
+    assert.deepEqual(selected, ['microsoft-uuid-2'])
+    assert.equal(firstMicrosoft.button.hasAttribute('selected'), false)
+    assert.equal(secondMicrosoft.button.hasAttribute('selected'), true)
+    assert.equal(firstMicrosoft.button.innerHTML, 'settings.authAccountSelect.selectButton')
+    assert.equal(secondMicrosoft.button.innerHTML, 'settings.authAccountSelect.selectedButton')
+}
+
+function createLogoutTarget(uuid){
+    const parent = new FakeElement({ classes: ['settingsAuthAccount'] })
+    parent.setAttribute('uuid', uuid)
+    parent.removed = false
+    parent.remove = () => { parent.removed = true }
+    return { parent, button: { closest: () => parent } }
+}
+
+function testOpaqueLegacyAccountPolicy(){
+    const firstMicrosoftAccount = {
+        uuid: 'microsoft-uuid-1',
+        type: 'microsoft',
+        username: 'Microsoft Player',
+        accessToken: 'microsoft-token',
+        displayName: 'Microsoft Player',
+        expiresAt: Date.now() + 60_000,
+        microsoft: { access_token: 'access', refresh_token: 'refresh', expires_at: Date.now() + 60_000 }
+    }
+    const secondMicrosoftAccount = {
+        ...firstMicrosoftAccount,
+        uuid: 'microsoft-uuid-2',
+        displayName: 'Second Microsoft Player'
+    }
+    const legacyMojangAccount = { uuid: 'legacy-mojang-uuid', type: 'mojang', accessToken: 'legacy-token', displayName: 'Legacy' }
+    const untypedLegacyAccount = { uuid: 'legacy-untyped-uuid', accessToken: 'untyped-token', displayName: 'Untyped' }
+    const incompleteMicrosoftAccount = {
+        ...firstMicrosoftAccount,
+        uuid: 'incomplete-microsoft-uuid',
+        accessToken: null,
+        displayName: 'Incomplete Microsoft Player'
+    }
+    const incompleteMicrosoftTokens = {
+        ...secondMicrosoftAccount,
+        uuid: 'incomplete-microsoft-tokens',
+        microsoft: { ...secondMicrosoftAccount.microsoft, refresh_token: '' }
+    }
+    const mixed = loadConfigManager({
+        accounts: [legacyMojangAccount, incompleteMicrosoftAccount, incompleteMicrosoftTokens, firstMicrosoftAccount, untypedLegacyAccount, secondMicrosoftAccount],
+        selectedUUID: legacyMojangAccount.uuid
+    })
+    assert.deepEqual(Object.keys(mixed.ConfigManager.getAuthAccounts()), [firstMicrosoftAccount.uuid, secondMicrosoftAccount.uuid])
+    assert.equal(mixed.ConfigManager.getSelectedAccount().uuid, firstMicrosoftAccount.uuid, 'first Microsoft account is the deterministic fallback')
+    assert.equal(mixed.ConfigManager.getAuthAccount(legacyMojangAccount.uuid), undefined)
+    assert.equal(mixed.ConfigManager.getAuthAccount(incompleteMicrosoftAccount.uuid), undefined)
+    assert.equal(mixed.ConfigManager.getAuthAccount(incompleteMicrosoftTokens.uuid), undefined)
+    assert.deepEqual(
+        JSON.parse(JSON.stringify(mixed.ConfigManager.getAuthAccount(secondMicrosoftAccount.uuid))),
+        secondMicrosoftAccount,
+        'Microsoft account format remains unchanged'
+    )
+    const mixedPersisted = mixed.getPersistedConfig()
+    assert.deepEqual(Object.keys(mixedPersisted.authenticationDatabase), [legacyMojangAccount.uuid, incompleteMicrosoftAccount.uuid, incompleteMicrosoftTokens.uuid, firstMicrosoftAccount.uuid, untypedLegacyAccount.uuid, secondMicrosoftAccount.uuid])
+    assert.equal(mixedPersisted.selectedAccount, legacyMojangAccount.uuid)
+    assert.equal(mixedPersisted.clientToken, 'legacy-client-token')
+    assert.equal(mixed.events.length, 0, 'load does not rewrite opaque authentication data')
+
+    assert.equal(mixed.ConfigManager.setSelectedAccount(incompleteMicrosoftAccount.uuid), undefined)
+    mixed.ConfigManager.setSelectedServer('unrelated-server-change')
+    mixed.ConfigManager.save()
+    const routineSave = mixed.getPersistedConfig()
+    assert.deepEqual(routineSave.authenticationDatabase, mixedPersisted.authenticationDatabase, 'routine saves preserve opaque legacy and incomplete records')
+    assert.equal(routineSave.selectedAccount, legacyMojangAccount.uuid, 'runtime fallback does not rewrite the stored selection')
+    assert.equal(routineSave.clientToken, 'legacy-client-token', 'routine saves preserve the opaque legacy client token')
+    assert.equal(mixed.events.length, 1)
+
+    const selectedMicrosoft = loadConfigManager({
+        accounts: [firstMicrosoftAccount, secondMicrosoftAccount],
+        selectedUUID: secondMicrosoftAccount.uuid
+    })
+    assert.equal(selectedMicrosoft.ConfigManager.getSelectedAccount().uuid, secondMicrosoftAccount.uuid, 'valid Microsoft selection is preserved')
+
+    const incompleteSelection = loadConfigManager({
+        accounts: [incompleteMicrosoftAccount, secondMicrosoftAccount],
+        selectedUUID: incompleteMicrosoftAccount.uuid
+    })
+    assert.equal(incompleteSelection.ConfigManager.getSelectedAccount().uuid, secondMicrosoftAccount.uuid, 'incomplete Microsoft selection falls back to a usable account')
+
+    const legacyOnly = loadConfigManager({ accounts: [legacyMojangAccount, incompleteMicrosoftAccount], selectedUUID: legacyMojangAccount.uuid })
+    assert.deepEqual(Object.keys(legacyOnly.ConfigManager.getAuthAccounts()), [])
+    assert.equal(legacyOnly.ConfigManager.getSelectedAccount(), undefined)
+    assert.equal(legacyOnly.events.length, 0)
+
+    const customJava = { server: { executable: 'java', minRAM: '2G', maxRAM: '4G' } }
+    const customMods = [{ id: 'preserved-mod', mods: { example: true } }]
+    for(const degradedDatabase of [null, 'invalid', []]){
+        const degraded = loadConfigManager({
+            authenticationDatabase: degradedDatabase,
+            javaConfig: customJava,
+            modConfigurations: customMods,
+            selectedUUID: 'missing'
+        })
+        assert.deepEqual(Object.keys(degraded.ConfigManager.getAuthAccounts()), [])
+        assert.equal(degraded.ConfigManager.getSelectedAccount(), undefined)
+        assert.equal(degraded.events.length, 0)
+        degraded.ConfigManager.setSelectedServer('unrelated-server-change')
+        degraded.ConfigManager.save()
+        const degradedSave = degraded.getPersistedConfig()
+        assert.deepEqual(degradedSave.authenticationDatabase, degradedDatabase, 'routine save preserves the degraded authentication container')
+        assert.deepEqual(degradedSave.javaConfig, customJava, 'auth fallback does not alter Java configuration')
+        assert.deepEqual(degradedSave.modConfigurations, customMods, 'auth fallback does not alter mod configuration')
+        assert.equal(degradedSave.clientToken, 'legacy-client-token')
+    }
+
+    const explicitAuthWrite = loadConfigManager({
+        authenticationDatabase: null,
+        javaConfig: customJava,
+        modConfigurations: customMods
+    })
+    explicitAuthWrite.ConfigManager.addMicrosoftAuthAccount(
+        firstMicrosoftAccount.uuid,
+        firstMicrosoftAccount.accessToken,
+        firstMicrosoftAccount.displayName,
+        firstMicrosoftAccount.expiresAt,
+        firstMicrosoftAccount.microsoft.access_token,
+        firstMicrosoftAccount.microsoft.refresh_token,
+        firstMicrosoftAccount.microsoft.expires_at
+    )
+    explicitAuthWrite.ConfigManager.save()
+    const explicitSave = explicitAuthWrite.getPersistedConfig()
+    assert.deepEqual(Object.keys(explicitSave.authenticationDatabase), [firstMicrosoftAccount.uuid], 'explicit valid auth write initializes a degraded auth container')
+    assert.equal(explicitSave.clientToken, 'legacy-client-token')
+    assert.deepEqual(explicitSave.javaConfig, customJava)
+    assert.deepEqual(explicitSave.modConfigurations, customMods)
+
+    const nullConfig = loadConfigManager({ initialConfig: null })
+    assert.deepEqual(Object.keys(nullConfig.ConfigManager.getAuthAccounts()), [])
+    assert.equal(nullConfig.ConfigManager.getSelectedAccount(), undefined)
+    assert.equal(nullConfig.events.length, 0, 'null configuration is normalized in memory without overwriting disk')
+}
+
+async function testMicrosoftValidationPaths(){
+    const now = Date.now()
+    const account = {
+        uuid: 'microsoft-uuid',
+        type: 'microsoft',
+        username: 'Microsoft Player',
+        displayName: 'Microsoft Player',
+        accessToken: 'mc-access',
+        expiresAt: now + 60_000,
+        microsoft: {
+            access_token: 'ms-access',
+            refresh_token: 'ms-refresh',
+            expires_at: now + 60_000
+        }
+    }
+
+    const valid = loadAuthManager(structuredClone(account))
+    assert.equal(await valid.AuthManager.validateSelected(), true)
+    assert.deepEqual(valid.calls, [], 'unexpired Minecraft token does not invoke refresh or persistence')
+
+    const incomplete = structuredClone(account)
+    delete incomplete.microsoft.refresh_token
+    const rejectedIncomplete = loadAuthManager(incomplete)
+    assert.equal(await rejectedIncomplete.AuthManager.validateSelected(), false)
+    assert.deepEqual(rejectedIncomplete.calls, [], 'incomplete Microsoft account never bypasses validation through an unexpired token')
+
+    const minecraftExpired = structuredClone(account)
+    minecraftExpired.expiresAt = now - 1
+    const minecraftRefresh = loadAuthManager(minecraftExpired)
+    assert.equal(await minecraftRefresh.AuthManager.validateSelected(), true)
+    assert.deepEqual(minecraftRefresh.calls.slice(0, 4).map(call => call[0]), ['xbl', 'xsts', 'minecraft', 'profile'])
+    assert.deepEqual(minecraftRefresh.calls.find(call => call[0] === 'xbl'), ['xbl', 'ms-access'])
+    const minecraftUpdate = minecraftRefresh.calls.find(call => call[0] === 'update')
+    assert.deepEqual(minecraftUpdate.slice(1, 6), ['microsoft-uuid', 'new-mc-access', 'ms-access', 'ms-refresh', account.microsoft.expires_at])
+    assert.equal(minecraftRefresh.calls.filter(call => call[0] === 'save').length, 1)
+
+    const microsoftExpired = structuredClone(minecraftExpired)
+    microsoftExpired.microsoft.expires_at = now - 1
+    const fullRefresh = loadAuthManager(microsoftExpired)
+    assert.equal(await fullRefresh.AuthManager.validateSelected(), true)
+    assert.deepEqual(fullRefresh.calls[0], ['access', 'ms-refresh', true, 'azure-client'])
+    const fullUpdate = fullRefresh.calls.find(call => call[0] === 'update')
+    assert.deepEqual(fullUpdate.slice(1, 5), ['microsoft-uuid', 'new-mc-access', 'new-ms-access', 'new-ms-refresh'])
+    assert.equal(fullRefresh.calls.filter(call => call[0] === 'save').length, 1)
+}
+
+function testProcessBuilderMicrosoftUserType(){
+    const ProcessBuilder = loadProcessBuilder()
+    const server = { rawServer: { id: 'server', minecraftVersion: '1.20.1' }, modules: [] }
+    const authUser = {
+        uuid: 'microsoft-uuid',
+        type: 'microsoft',
+        username: 'Microsoft Player',
+        displayName: 'Microsoft Player',
+        accessToken: 'mc-access',
+        expiresAt: Date.now() + 60_000,
+        microsoft: { access_token: 'ms-access', refresh_token: 'ms-refresh', expires_at: Date.now() + 60_000 }
+    }
+    const modern = new ProcessBuilder(
+        server,
+        { arguments: { jvm: [], game: ['--userType', '${user_type}'] }, assets: 'assets', type: 'release' },
+        { id: 'mod', mainClass: 'Main', arguments: { jvm: [], game: [] } },
+        authUser,
+        '1.1.0'
+    )
+    modern._processAutoConnectArg = () => {}
+    const modernArgs = modern._constructJVMArguments113([], 'natives')
+    assert.equal(modernArgs[modernArgs.indexOf('--userType') + 1], 'msa')
+
+    const legacy = new ProcessBuilder(
+        server,
+        {},
+        { minecraftArguments: '--userType ${user_type}' },
+        authUser,
+        '1.1.0'
+    )
+    legacy._processAutoConnectArg = () => {}
+    legacy._lteMinorVersion = () => false
+    const legacyArgs = legacy._resolveForgeArgs()
+    assert.equal(legacyArgs[legacyArgs.indexOf('--userType') + 1], 'msa')
+}
+
+function testMicrosoftAccountLogoutRoute(){
+    const target = createLogoutTarget('microsoft-uuid')
+    const ipcCalls = []
+    const { processLogOut } = loadFunctions(settingsSource, ['processLogOut'], {
+        ConfigManager: {
+            getSelectedAccount: () => ({ uuid: 'microsoft-uuid' }),
+            getAuthAccount: () => ({ type: 'microsoft' })
+        },
+        VIEWS: { waiting: '#waiting' },
+        MSFT_OPCODE: { OPEN_LOGOUT: 'open-logout' },
+        getCurrentView: () => '#settings',
+        switchView: (_current, _next, _out, _in, complete) => complete(),
+        ipcRenderer: { send: (...args) => ipcCalls.push(args) }
+    }, 'let msAccDomElementCache')
+
+    processLogOut(target.button, false)
+    assert.deepEqual(ipcCalls, [['open-logout', 'microsoft-uuid', false]])
+    assert.equal(target.parent.removed, false, 'Microsoft account still waits for its IPC reply')
+}
+
 async function run(){
     await scenario('functional Settings markup snapshot', testMarkupContract)
+    await scenario('retired Mojang login entry points stay absent', testRetiredMojangLoginContract)
+    await scenario('Settings and account picker render Microsoft accounts only', testMicrosoftOnlyAccountRendering)
+    await scenario('Microsoft account selection delegates through the existing flow', testMicrosoftAccountSelection)
+    await scenario('opaque auth data survives routine saves while runtime filters it', testOpaqueLegacyAccountPolicy)
+    await scenario('Microsoft token validation preserves valid and refresh paths', testMicrosoftValidationPaths)
+    await scenario('ProcessBuilder emits msa for modern and legacy arguments', testProcessBuilderMicrosoftUserType)
+    await scenario('Microsoft logout remains on the IPC flow', testMicrosoftAccountLogoutRoute)
     await scenario('prepareSettings first-load order', () => testPrepareSettings(true))
     await scenario('prepareSettings refresh order', () => testPrepareSettings(false))
     await scenario('normal, Account, Mods, and Update routes', testSettingsRoutes)

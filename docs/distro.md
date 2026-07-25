@@ -402,7 +402,7 @@ If the module is enabled by default. Has no effect unless `Required.value` is fa
 
 ### ForgeHosted
 
-The module type `ForgeHosted` represents forge itself. Currently, the launcher only supports modded servers, as vanilla servers can be connected to via the mojang launcher. The `Hosted` part is key, this means that the forge module must declare its required libraries as submodules.
+The module type `ForgeHosted` represents forge itself. Currently, the launcher only supports modded servers, as vanilla servers can be connected to through the official launcher. The `Hosted` part is key, this means that the forge module must declare its required libraries as submodules.
 
 Ex.
 
@@ -439,7 +439,7 @@ There were plans to add a `Forge` type, in which the required libraries would be
 
 ### Fabric
 
-The module type `Fabric` represents the fabric mod loader. Currently, the launcher only supports modded servers, as vanilla servers can be connected to via the mojang launcher.
+The module type `Fabric` represents the fabric mod loader. Currently, the launcher only supports modded servers, as vanilla servers can be connected to through the official launcher.
 
 Ex.
 

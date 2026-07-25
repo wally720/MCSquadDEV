@@ -311,7 +311,7 @@ async function testUnawaitedJavaRejection(){
     assert.equal(scan.calls.some(call => call[0] === 'failure'), false)
 }
 
-function createRepairHarness({ invalidFiles = 0, verifyError = null, downloadError = null, process = null } = {}){
+function createRepairHarness({ invalidFiles = 0, verifyError = null, downloadError = null, process = null, authUser = { displayName: 'Player' } } = {}){
     const calls = []
     const repairProcess = new EventEmitter()
     class FullRepair {
@@ -324,6 +324,7 @@ function createRepairHarness({ invalidFiles = 0, verifyError = null, downloadErr
     class MojangIndexProcessor { async getVersionJson(){ return {} } }
     class DistributionIndexProcessor { async loadModLoaderVersionJson(){ return {} } }
     class ProcessBuilder {
+        constructor(){ calls.push(['processBuilder']) }
         build(){ calls.push(['build']); return process }
     }
     const server = { rawServer: { id: 'server', minecraftVersion: '1.21', discord: null } }
@@ -346,7 +347,7 @@ function createRepairHarness({ invalidFiles = 0, verifyError = null, downloadErr
         DistroAPI: { refreshDistributionOrFallback: async () => distro, isDevMode: () => false },
         onDistroRefresh: () => calls.push(['refresh']),
         ConfigManager: {
-            getSelectedServer: () => 'server', getSelectedAccount: () => ({ displayName: 'Player' }),
+            getSelectedServer: () => 'server', getSelectedAccount: () => authUser,
             getCommonDirectory: () => 'common', getInstanceDirectory: () => 'instance', getLauncherDirectory: () => 'launcher'
         },
         FullRepair,
@@ -370,6 +371,14 @@ function createRepairHarness({ invalidFiles = 0, verifyError = null, downloadErr
     }, `${launchStatePrelude()}\n${lifecyclePrelude}`)
     sut.setLaunchEnabled(true)
     return { calls, FullRepair, repairProcess, sut, taskbar }
+}
+
+async function testUnusableAccountStopsBeforeProcessBuilder(){
+    const blocked = createRepairHarness({ authUser: null })
+    await blocked.sut.dlAsync(true)
+    assert.equal(blocked.calls.some(call => call[0] === 'spawnReceiver'), false)
+    assert.equal(blocked.calls.some(call => call[0] === 'processBuilder'), false)
+    assert.equal(blocked.calls.some(call => call[0] === 'build'), false)
 }
 
 async function testFullRepairContracts(){
@@ -478,6 +487,7 @@ async function run(){
     await scenario('Java discovery, manual cancel, and retry preserve current state machine', testJavaDiscoveryAndOverlayStateMachine)
     await scenario('Java download success and failure states preserve current cleanup behavior', testJavaDownloadSuccessAndFailures)
     await scenario('Java overlay exposes an unawaited asynchronous rejection', testUnawaitedJavaRejection)
+    await scenario('unusable accounts stop before repair and ProcessBuilder', testUnusableAccountStopsBeforeProcessBuilder)
     await scenario('FullRepair zero, invalid, verify, and download outcomes preserve cleanup behavior', testFullRepairContracts)
     await scenario('Minecraft process stdout, stderr, and close preserve launch-state behavior', testProcessEmitterContracts)
     console.log(`Legacy launch harness: ${scenarios} scenarios passed; ${manifest.knownGaps.length} known gaps characterized`)

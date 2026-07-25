@@ -289,7 +289,7 @@ async function run(){
 
     const mirrors = createHarness({ reducedMotion: true })
     await Promise.resolve()
-    mirrors.api.updateAccount({ displayName: 'Player One', uuid: 'account-1' })
+    mirrors.api.updateAccount({ displayName: 'Player One', uuid: 'account-1', type: 'microsoft' })
     assert.equal(mirrors.elements['[data-sa-account-name]'].textContent, 'Player One')
     assert.equal(mirrors.elements['[data-sa-skin]'].src, 'https://mc-heads.net/body/account-1/right')
     assert.equal(mirrors.elements['[data-sa-skin]'].alt, 'Skin de Player One')

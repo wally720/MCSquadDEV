@@ -278,7 +278,7 @@ function loadConfig({ existing = false } = {}){
     }
     vm.runInNewContext(configSource, context, { filename: 'configmanager.js' })
     exports.load()
-    return { config: exports, saved }
+    return { config: exports, get saved(){ return saved } }
 }
 
 function testConfigDefault(){
@@ -286,7 +286,9 @@ function testConfigDefault(){
     const existing = loadConfig({ existing: true })
     assert.equal(fresh.config.getShowIntro(), true, 'new configs show the intro by default')
     assert.equal(existing.config.getShowIntro(), true, 'existing configs without the setting show the intro')
-    assert.equal(existing.saved.settings.launcher.showIntro, true, 'existing configs are migrated with the default')
+    assert.equal(existing.saved, null, 'existing configs are normalized in memory without a startup write')
+    existing.config.save()
+    assert.equal(existing.saved.settings.launcher.showIntro, true, 'the next normal save persists the default')
 }
 
 function testStartupSurfaceFirstPaint(){
@@ -302,6 +304,8 @@ function testStartupSurfaceFirstPaint(){
     assert.doesNotMatch(startupStyles, /anime/i, 'startup surface has no Anime dependency')
     assert.doesNotMatch(appMarkup, /loadingContainer|loadingContent|loadSpinnerContainer|loadCenterImage|loadSpinnerImage|LoadingSeal\.png|LoadingText\.png/, 'legacy loading markup and artwork are retired')
     assert.doesNotMatch(`${launcherStyles}\n${introStyles}`, /#loadingContainer|#loadCenterImage|#loadSpinnerImage|@keyframes rotating|\.rotating\s*\{/, 'legacy loading selectors are retired')
+    assert.doesNotMatch(launcherStyles, /#welcomeContent|#welcomeImageSeal|#welcomeHeader|#welcomeDescription|#welcomeDescCTA|#welcomeSVG|#welcomeButtonContent/, 'legacy Welcome selectors stay retired from the shared stylesheet')
+    assert.doesNotMatch(launcherStyles, /Welcome View \(welcome\.ejs\)/, 'the shared stylesheet no longer owns the Squad Arcade intro')
     assert.equal(fs.existsSync(path.join(projectRoot, 'app', 'assets', 'images', 'LoadingSeal.png')), false)
     assert.equal(fs.existsSync(path.join(projectRoot, 'app', 'assets', 'images', 'LoadingText.png')), false)
 }

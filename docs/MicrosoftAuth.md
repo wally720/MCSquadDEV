@@ -1,6 +1,6 @@
 # Microsoft Authentication
 
-Authenticating with Microsoft is fully supported by Helios Launcher.
+The MCSquad launcher authenticates Minecraft accounts through Microsoft OAuth.
 
 ## Acquiring an Entra Client ID
 
@@ -28,7 +28,7 @@ Authenticating with Microsoft is fully supported by Helios Launcher.
 9. Copy **Application (client) ID**.
 
 
-## Adding the Entra Client ID to Helios Launcher.
+## Adding the Entra Client ID to the MCSquad launcher
 
 In `app/assets/js/ipcconstants.js` you'll find **`AZURE_CLIENT_ID`**. Set it to your application's id.
 
