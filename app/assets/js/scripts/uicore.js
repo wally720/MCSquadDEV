@@ -37,6 +37,7 @@ webFrame.setVisualZoomLevelLimits(1, 1)
 
 // Initialize auto updates in production environments.
 let updateCheckListener
+
 function handleAutoUpdateNotification(arg, info){
     switch(arg){
         case 'checking-for-update':
@@ -48,8 +49,8 @@ function handleAutoUpdateNotification(arg, info){
 
             if(process.platform === 'darwin'){
                 info.darwindownload = `https://github.com/wally720/mcsquaddev/releases/download/v${info.version}/MCSquad-Dev-setup-${info.version}${process.arch === 'arm64' ? '-arm64' : '-x64'}.dmg`
+                showUpdateUI(info)
             }
-            showUpdateUI(info)
             populateSettingsUpdateInformation(info)
             break
         case 'update-downloaded':
@@ -176,7 +177,7 @@ function renderUpdateUI(){
 let updateUIState = 'normal'
 
 function setUpdateUIState(state){
-    updateUIState = ['available', 'downloading', 'ready'].includes(state) ? state : 'normal'
+    updateUIState = !isDev && ['available', 'downloading', 'ready'].includes(state) ? state : 'normal'
     renderUpdateUI()
 }
 

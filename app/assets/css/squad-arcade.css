@@ -123,7 +123,6 @@
 }
 
 .squad-arcade .sa-brand-cluster {
-    position: relative;
     min-width: 0;
 }
 
@@ -144,33 +143,41 @@
 }
 
 .squad-arcade .sa-brand[data-update-state] img {
-    animation: sa-update-logo-pulse 3.4s ease-in-out infinite;
+    animation: sa-update-logo-pulse 2.6s ease-in-out infinite;
+    box-shadow: 0 0 0 4px rgba(var(--sa-update-pulse-rgb), 0.18), 0 0 15px rgba(var(--sa-update-pulse-rgb), 0.38);
+    transform-origin: center;
+    will-change: box-shadow, filter, transform;
 }
 
 @keyframes sa-update-logo-pulse {
     0%, 100% {
-        box-shadow: 0 0 0 0 rgba(var(--sa-update-pulse-rgb), 0);
+        box-shadow: 0 0 0 0 rgba(var(--sa-update-pulse-rgb), 0), 0 0 0 rgba(var(--sa-update-pulse-rgb), 0);
+        filter: drop-shadow(0 0 0 rgba(var(--sa-update-pulse-rgb), 0));
+        transform: scale(1);
     }
     45% {
         box-shadow: 0 0 0 6px rgba(var(--sa-update-pulse-rgb), 0.24), 0 0 18px rgba(var(--sa-update-pulse-rgb), 0.2);
+        filter: drop-shadow(0 0 8px rgba(var(--sa-update-pulse-rgb), 0.72));
+        transform: scale(1.08);
     }
     65% {
         box-shadow: 0 0 0 9px rgba(var(--sa-update-pulse-rgb), 0), 0 0 24px rgba(var(--sa-update-pulse-rgb), 0.08);
+        filter: drop-shadow(0 0 3px rgba(var(--sa-update-pulse-rgb), 0.3));
+        transform: scale(1.02);
     }
 }
 
-.squad-arcade .sa-update-badge {
-    position: absolute;
-    top: 0;
-    left: 43px;
-    z-index: 2;
+.squad-arcade .sa-marquee nav .sa-update-badge {
     display: inline-flex;
+    flex: 0 1 auto;
     align-items: center;
     gap: 5px;
     box-sizing: border-box;
-    max-width: 142px;
+    width: max-content;
+    min-width: 0;
+    max-width: none;
     padding: 4px 7px;
-    overflow: hidden;
+    overflow: visible;
     border: 2px solid #57e878;
     color: #baffc9;
     background: rgba(4, 22, 12, 0.94);
@@ -178,7 +185,7 @@
     font-weight: 800;
     letter-spacing: .07em;
     line-height: 1;
-    text-overflow: ellipsis;
+    text-overflow: clip;
     text-transform: uppercase;
     transform: rotate(2deg);
     white-space: nowrap;
@@ -189,9 +196,30 @@
 }
 
 .squad-arcade .sa-update-badge[data-update-state='downloading'] {
+    --sa-update-pulse-rgb: 243, 182, 75;
     border-color: #f3b64b;
     color: #ffe1a0;
     background: rgba(35, 23, 5, 0.95);
+}
+
+.squad-arcade .sa-update-badge[data-update-state='available'],
+.squad-arcade .sa-update-badge[data-update-state='ready'] {
+    --sa-update-pulse-rgb: 87, 232, 120;
+}
+
+.squad-arcade .sa-update-badge[data-update-state] {
+    animation: sa-update-badge-pulse 2.2s ease-in-out infinite;
+    box-shadow: 0 0 0 4px rgba(var(--sa-update-pulse-rgb), 0.16), 0 0 15px rgba(var(--sa-update-pulse-rgb), 0.34);
+    will-change: box-shadow;
+}
+
+@keyframes sa-update-badge-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(var(--sa-update-pulse-rgb), 0), 0 0 0 rgba(var(--sa-update-pulse-rgb), 0);
+    }
+    50% {
+        box-shadow: 0 0 0 5px rgba(var(--sa-update-pulse-rgb), 0.14), 0 0 17px rgba(var(--sa-update-pulse-rgb), 0.34);
+    }
 }
 
 .squad-arcade .sa-update-signal {
@@ -1069,10 +1097,15 @@
         height: 31px;
     }
 
-    .squad-arcade .sa-update-badge {
-        left: 35px;
-        max-width: 112px;
+    .squad-arcade .sa-marquee nav .sa-update-badge {
+        flex: 1 1 150px;
+        width: auto;
+        white-space: normal;
         font-size: 6px;
+    }
+
+    .squad-arcade .sa-marquee nav .sa-update-badge [data-sa-update-label] {
+        white-space: normal;
     }
 
     .squad-arcade .sa-brand span {
@@ -1168,6 +1201,10 @@
     .squad-arcade .sa-brand[data-update-state] img {
         animation: none;
     }
+
+    .squad-arcade .sa-update-badge[data-update-state] {
+        animation: none;
+    }
 }
 
 @media (max-width: 570px) {
@@ -1187,22 +1224,25 @@
         white-space: nowrap;
     }
 
-    .squad-arcade .sa-update-badge {
-        left: 29px;
-        right: 4px;
+    .squad-arcade .sa-marquee nav .sa-update-badge {
+        flex: 1 1 106px;
+        width: auto;
+        min-width: 0;
         max-width: none;
         padding: 3px 5px;
         border-width: 2px;
         gap: 3px;
         font-size: 5px;
         line-height: 1.1;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
     }
 
-    .squad-arcade .sa-update-badge [data-sa-update-label] {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+    .squad-arcade .sa-marquee nav .sa-update-badge [data-sa-update-label] {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
     }
 
     .squad-arcade .sa-marquee nav {
