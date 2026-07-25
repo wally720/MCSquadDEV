@@ -180,7 +180,8 @@ function createStatusClient({
     resolveSrv: lookupSrv = resolveSrv,
     connect = net.connect,
     setTimeout: scheduleDeadline = setTimeout,
-    clearTimeout: cancelDeadline = clearTimeout
+    clearTimeout: cancelDeadline = clearTimeout,
+    now = Date.now
 } = {}){
     /**
      * Retrieve a Minecraft server's modern status response. The promise resolves
@@ -198,7 +199,16 @@ function createStatusClient({
         return await new Promise((resolve, reject) => {
             let activeSocket = null
             let deadlineTimer = null
+            let attemptTimer = null
             let settled = false
+            const startedAt = now()
+
+            const clearAttemptTimer = () => {
+                if(attemptTimer != null){
+                    cancelDeadline(attemptTimer)
+                    attemptTimer = null
+                }
+            }
 
             const settle = (error, status) => {
                 if(settled){
@@ -206,6 +216,7 @@ function createStatusClient({
                 }
                 settled = true
                 cancelDeadline(deadlineTimer)
+                clearAttemptTimer()
                 destroySocket(activeSocket)
                 activeSocket = null
                 if(error == null){
@@ -240,6 +251,7 @@ function createStatusClient({
                         return
                     }
                     attemptSettled = true
+                    clearAttemptTimer()
                     destroySocket(socket)
                     if(activeSocket === socket){
                         activeSocket = null
@@ -252,6 +264,7 @@ function createStatusClient({
                         return
                     }
                     attemptSettled = true
+                    clearAttemptTimer()
                     settle(null, status)
                 }
 
@@ -268,6 +281,14 @@ function createStatusClient({
                         }
                     })
                     activeSocket = socket
+                    const remainingTargets = targets.length - index
+                    if(remainingTargets > 1){
+                        const remainingTime = Math.max(0, STATUS_DEADLINE_MS - (now() - startedAt))
+                        const attemptDeadline = Math.max(1, Math.floor(remainingTime / remainingTargets))
+                        attemptTimer = scheduleDeadline(() => {
+                            failAttempt(createStatusError(`Server status target timed out (${target.address}:${target.port}).`, 'ETIMEDOUT'))
+                        }, attemptDeadline)
+                    }
                     socket.on('data', data => {
                         if(settled || attemptSettled || data.length === 0){
                             return

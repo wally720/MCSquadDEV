@@ -15,10 +15,24 @@ exports.createServerStatusController = function({
     const { getStatus } = createStatusClient(statusTransport)
     const inFlight = new Map()
 
+    const publishOfflineIfCurrent = selectedServerId => {
+        if(getSelectedServer() === selectedServerId){
+            updateStatus(false, getOfflineText())
+        }
+    }
+
     const refreshServerStatus = async () => {
         const selectedServerId = getSelectedServer()
-        const serv = (await getDistribution()).getServerById(selectedServerId)
-        if(serv == null){
+        let serv
+        try {
+            const distribution = await getDistribution()
+            serv = distribution?.getServerById?.(selectedServerId)
+        } catch (err) {
+            logger.warn('No se puede cargar la distribución para actualizar el estado del servidor, asumiendo que está desconectado.')
+            logger.debug(err)
+        }
+        if(serv == null || typeof serv.hostname !== 'string' || serv.hostname.length === 0){
+            publishOfflineIfCurrent(selectedServerId)
             return
         }
         const endpointKey = createEndpointKey(selectedServerId, serv)

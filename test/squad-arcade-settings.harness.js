@@ -3112,7 +3112,7 @@ async function testMinecraftServerStatusClient(){
     srv.emit(1, 'data', createStatusPacket(statusPayload))
     await srvRequest
     assert.deepEqual(srv.calls.filter(call => call[0] === 'destroy').map(call => call[1]), [0, 1], 'each SRV socket is cleaned once')
-    assert.equal(srv.calls.filter(call => call[0] === 'deadline').length, 1, 'SRV failover shares the original total deadline')
+    assert.equal(srv.calls.filter(call => call[0] === 'deadline').length, 2, 'SRV failover keeps one global deadline and bounds attempts that precede another target')
 
     const dnsFallback = loadServerStatusClient({ srvError: new Error('DNS unavailable') })
     const fallbackRequest = dnsFallback.query('fallback.example.test', 25565)

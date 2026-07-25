@@ -9,6 +9,7 @@ const landingMarkup = fs.readFileSync(path.join(__dirname, '..', 'app', 'landing
 const launcherStyles = fs.readFileSync(path.join(__dirname, '..', 'app', 'assets', 'css', 'launcher.css'), 'utf8')
 const localeSource = fs.readFileSync(path.join(__dirname, '..', 'app', 'assets', 'lang', 'en_US.toml'), 'utf8')
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'legacy-characterization.json'), 'utf8'))
+const { createStatusClient } = require('../app/assets/js/serverstatus')
 const { createServerStatusController } = require('../app/assets/js/serverstatuscontroller')
 
 class FakeClassList {
@@ -287,10 +288,11 @@ function createStatusResponsePacket(payload){
     return Buffer.concat([encodeStatusVarInt(frame.length), frame])
 }
 
-function createStatusTransport(){
+function createStatusTransport({ srvRecords = [] } = {}){
     const sockets = []
     const timers = new Map()
     let timerId = 0
+    let currentTime = 0
     const boundary = {
         clearTimeout: id => timers.delete(id),
         connect(port, hostname, connected){
@@ -313,7 +315,8 @@ function createStatusTransport(){
             })
             return socket
         },
-        resolveSrv: async () => [],
+        now: () => currentTime,
+        resolveSrv: async () => srvRecords,
         setTimeout(listener, delay){
             const id = ++timerId
             timers.set(id, { delay, listener })
@@ -327,6 +330,17 @@ function createStatusTransport(){
             const timer = timers.values().next().value
             assert.ok(timer, 'status deadline is pending')
             timer.listener()
+        },
+        runAttemptDeadline(){
+            const timer = [...timers.values()].find(candidate => candidate.delay < 5000)
+            assert.ok(timer, 'per-target status deadline is pending')
+            currentTime += timer.delay
+            timer.listener()
+        },
+        attemptDeadlineDelays(){
+            return [...timers.values()]
+                .filter(candidate => candidate.delay < 5000)
+                .map(candidate => candidate.delay)
         },
         socketFor(hostname){
             for(let index = sockets.length - 1; index >= 0; index--){
@@ -358,9 +372,14 @@ async function testIntegratedServerStatusFlow(){
     const transport = createStatusTransport()
     const servers = {}
     let selectedServerId = null
+    let distributionError = null
+    let distributionHasServer = true
     const controller = createServerStatusController({
         getSelectedServer: () => selectedServerId,
-        getDistribution: async () => ({ getServerById: id => servers[id] }),
+        getDistribution: async () => {
+            if(distributionError != null) throw distributionError
+            return { getServerById: id => distributionHasServer ? servers[id] : null }
+        },
         updateStatus: (online, players) => home.api.updateStatus(online, players),
         getOfflineText: () => 'Offline',
         logger: { debug(){}, info(){}, warn(){} },
@@ -397,6 +416,20 @@ async function testIntegratedServerStatusFlow(){
     assert.equal(home.elements['[data-sa-status]'].textContent, 'OFFLINE')
     assert.equal(home.elements['[data-sa-players]'].textContent, '--')
 
+    selectedServerId = 'distribution-error'
+    distributionError = new Error('distribution unavailable')
+    await settleWithin(controller.refreshServerStatus())
+    assert.equal(home.elements['[data-sa-status]'].textContent, 'OFFLINE')
+    assert.equal(home.elements['[data-sa-players]'].textContent, '--', 'startup distribution rejection publishes a contained offline state')
+    distributionError = null
+
+    selectedServerId = 'missing-server'
+    distributionHasServer = false
+    await settleWithin(controller.refreshServerStatus())
+    assert.equal(home.elements['[data-sa-status]'].textContent, 'OFFLINE')
+    assert.equal(home.elements['[data-sa-players]'].textContent, '--', 'polling without a valid selected server publishes offline')
+    distributionHasServer = true
+
     const timedOut = await startRefresh('timeout', 'timeout.example.test')
     transport.runDeadline()
     await settleWithin(timedOut.promise)
@@ -430,6 +463,45 @@ async function testIntegratedServerStatusFlow(){
     assert.equal(controller.getInFlightCount(), 0, 'all controller status requests leave the in-flight registry')
     assert.equal(transport.pendingTimers.size, 0, 'all status client deadlines are cleared')
     assert.equal(transport.sockets.every(socket => socket.destroyed), true, 'all status sockets are closed')
+}
+
+async function testHangingSrvTargetFailover(){
+    const transport = createStatusTransport({
+        srvRecords: [
+            { name: 'slow.example.test', port: 25565, priority: 0, weight: 10 },
+            { name: 'also-slow.example.test', port: 25566, priority: 1, weight: 0 },
+            { name: 'ready.example.test', port: 25567, priority: 2, weight: 0 }
+        ]
+    })
+    const client = createStatusClient(transport.boundary)
+    const statusPromise = client.getStatus('play.example.test')
+    await new Promise(resolve => setImmediate(resolve))
+
+    const slowSocket = transport.socketFor('slow.example.test')
+    assert.deepEqual(transport.attemptDeadlineDelays(), [1666], 'the first target receives one third of the original 5000 ms budget')
+    transport.runAttemptDeadline()
+    await new Promise(resolve => setImmediate(resolve))
+    const alsoSlowSocket = transport.socketFor('also-slow.example.test')
+    assert.deepEqual(transport.attemptDeadlineDelays(), [1667], 'the next target is calculated from the reduced 3334 ms remaining budget')
+    transport.runAttemptDeadline()
+    await new Promise(resolve => setImmediate(resolve))
+    const readySocket = transport.socketFor('ready.example.test')
+    readySocket.emit('data', createStatusResponsePacket({ players: { online: 4, max: 12 } }))
+
+    const status = await settleWithin(statusPromise)
+    assert.deepEqual(status, {
+        online: true,
+        version: '',
+        motd: '',
+        onlinePlayers: '4',
+        maxPlayers: '12'
+    })
+    assert.equal(slowSocket.destroyed, true, 'a hanging first SRV target is destroyed at its attempt deadline')
+    assert.equal(alsoSlowSocket.destroyed, true, 'a hanging second SRV target is destroyed within the remaining global budget')
+    slowSocket.emit('error', new Error('late socket error'))
+    slowSocket.emit('close')
+    assert.equal(transport.sockets.length, 3, 'late events from the expired target cannot double-settle or create another attempt')
+    assert.equal(transport.pendingTimers.size, 0, 'global and per-target deadlines are cleared after failover succeeds')
 }
 
 async function run(){
@@ -731,6 +803,7 @@ async function run(){
     assert.equal(unavailable.timers.size, 0, 'Anime fallback does not schedule attraction')
 
     await testIntegratedServerStatusFlow()
+    await testHangingSrvTargetFailover()
 
     console.log('Squad Arcade harness: 27 scenarios passed')
 }
