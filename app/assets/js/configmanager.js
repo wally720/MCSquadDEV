@@ -5,6 +5,9 @@ const path = require('path')
 
 const logger = LoggerUtil.getLogger('ConfigManager')
 
+const LAUNCHER_THEMES = new Set(['overworld', 'creeper', 'nether', 'ender'])
+const DEFAULT_LAUNCHER_THEME = 'overworld'
+
 const sysRoot = process.env.APPDATA || (process.platform == 'darwin' ? process.env.HOME + '/Library/Application Support' : process.env.HOME)
 
 const dataPath = path.join(sysRoot, '.mcsquaddev')
@@ -86,15 +89,11 @@ const DEFAULT_CONFIG = {
         },
         launcher: {
             allowPrerelease: false,
-            dataDirectory: dataPath
+            dataDirectory: dataPath,
+            theme: DEFAULT_LAUNCHER_THEME,
+            showIntro: true
         }
     },
-    newsCache: {
-        date: null,
-        content: null,
-        dismissed: false
-    },
-    clientToken: null,
     selectedServer: null, // Resolved
     selectedAccount: null,
     authenticationDatabase: {},
@@ -103,6 +102,58 @@ const DEFAULT_CONFIG = {
 }
 
 let config = null
+
+function isPlainObject(value){
+    return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isNonEmptyString(value){
+    return typeof value === 'string' && value.trim().length > 0
+}
+
+function getStoredAuthAccounts(){
+    return isPlainObject(config?.authenticationDatabase)
+        ? config.authenticationDatabase
+        : {}
+}
+
+function isUsableMicrosoftAccount(uuid, account){
+    return isNonEmptyString(uuid)
+        && isPlainObject(account)
+        && account.type === 'microsoft'
+        && account.uuid === uuid
+        && isNonEmptyString(account.username)
+        && isNonEmptyString(account.displayName)
+        && isNonEmptyString(account.accessToken)
+        && Number.isFinite(account.expiresAt)
+        && isPlainObject(account.microsoft)
+        && isNonEmptyString(account.microsoft.access_token)
+        && isNonEmptyString(account.microsoft.refresh_token)
+        && Number.isFinite(account.microsoft.expires_at)
+}
+
+function getUsableMicrosoftAccounts(){
+    const storedAccounts = getStoredAuthAccounts()
+    return Object.fromEntries(
+        Object.keys(storedAccounts)
+            .filter(uuid => isUsableMicrosoftAccount(uuid, storedAccounts[uuid]))
+            .map(uuid => [uuid, storedAccounts[uuid]])
+    )
+}
+
+function getSelectedAuthAccountUUID(authAccounts = getUsableMicrosoftAccounts()){
+    if(typeof config.selectedAccount === 'string' && Object.hasOwn(authAccounts, config.selectedAccount)){
+        return config.selectedAccount
+    }
+    return Object.keys(authAccounts)[0] ?? null
+}
+
+function getAuthAccountsForWrite(){
+    if(!isPlainObject(config.authenticationDatabase)){
+        config.authenticationDatabase = {}
+    }
+    return config.authenticationDatabase
+}
 
 // Persistance Utility Functions
 
@@ -114,10 +165,12 @@ exports.save = function(){
 }
 
 /**
- * Load the configuration into memory. If a configuration file exists,
- * that will be read and saved. Otherwise, a default configuration will
- * be generated. Note that "resolved" values default to null and will
- * need to be externally assigned.
+ * Load the configuration into memory. Valid existing files are validated
+ * without being rewritten. Missing files generate and save a default config;
+ * malformed files are replaced with that default as recovery. Stored auth
+ * records remain untouched during a valid load, while runtime account getters
+ * expose only structurally usable Microsoft accounts. Note that "resolved"
+ * values default to null and must be externally assigned.
  */
 exports.load = function(){
     let doLoad = true
@@ -148,7 +201,7 @@ exports.load = function(){
         }
         if(doValidate){
             config = validateKeySet(DEFAULT_CONFIG, config)
-            exports.save()
+            config.settings.launcher.theme = sanitizeLauncherTheme(config.settings.launcher.theme)
         }
     }
     logger.info('Successfully Loaded')
@@ -170,19 +223,23 @@ exports.isLoaded = function(){
  * @returns {Object} A validated destination object.
  */
 function validateKeySet(srcObj, destObj){
-    if(srcObj == null){
-        srcObj = {}
-    }
+    srcObj = isPlainObject(srcObj) ? srcObj : {}
+    destObj = isPlainObject(destObj) ? destObj : {}
     const validationBlacklist = ['authenticationDatabase', 'javaConfig']
     const keys = Object.keys(srcObj)
     for(let i=0; i<keys.length; i++){
-        if(typeof destObj[keys[i]] === 'undefined'){
-            destObj[keys[i]] = srcObj[keys[i]]
-        } else if(typeof srcObj[keys[i]] === 'object' && srcObj[keys[i]] != null && !(srcObj[keys[i]] instanceof Array) && validationBlacklist.indexOf(keys[i]) === -1){
-            destObj[keys[i]] = validateKeySet(srcObj[keys[i]], destObj[keys[i]])
+        const key = keys[i]
+        if(typeof destObj[key] === 'undefined'){
+            destObj[key] = srcObj[key]
+        } else if(isPlainObject(srcObj[key]) && !validationBlacklist.includes(key)){
+            destObj[key] = validateKeySet(srcObj[key], destObj[key])
         }
     }
     return destObj
+}
+
+function sanitizeLauncherTheme(theme){
+    return LAUNCHER_THEMES.has(theme) ? theme : DEFAULT_LAUNCHER_THEME
 }
 
 /**
@@ -208,34 +265,6 @@ exports.getTempNativeFolder = function(){
 // System Settings (Unconfigurable on UI)
 
 /**
- * Retrieve the news cache to determine
- * whether or not there is newer news.
- * 
- * @returns {Object} The news cache object.
- */
-exports.getNewsCache = function(){
-    return config.newsCache
-}
-
-/**
- * Set the new news cache object.
- * 
- * @param {Object} newsCache The new news cache object.
- */
-exports.setNewsCache = function(newsCache){
-    config.newsCache = newsCache
-}
-
-/**
- * Set whether or not the news has been dismissed (checked)
- * 
- * @param {boolean} dismissed Whether or not the news has been dismissed (checked).
- */
-exports.setNewsCacheDismissed = function(dismissed){
-    config.newsCache.dismissed = dismissed
-}
-
-/**
  * Retrieve the common directory for shared
  * game files (assets, libraries, etc).
  * 
@@ -256,32 +285,13 @@ exports.getInstanceDirectory = function(){
 }
 
 /**
- * Retrieve the launcher's Client Token.
- * There is no default client token.
- * 
- * @returns {string} The launcher's Client Token.
- */
-exports.getClientToken = function(){
-    return config.clientToken
-}
-
-/**
- * Set the launcher's Client Token.
- * 
- * @param {string} clientToken The launcher's new Client Token.
- */
-exports.setClientToken = function(clientToken){
-    config.clientToken = clientToken
-}
-
-/**
  * Retrieve the ID of the selected serverpack.
  * 
  * @param {boolean} def Optional. If true, the default value will be returned.
  * @returns {string} The ID of the selected serverpack.
  */
 exports.getSelectedServer = function(def = false){
-    return !def ? config.selectedServer : DEFAULT_CONFIG.clientToken
+    return !def ? config.selectedServer : DEFAULT_CONFIG.selectedServer
 }
 
 /**
@@ -294,59 +304,33 @@ exports.setSelectedServer = function(serverID){
 }
 
 /**
- * Get an array of each account currently authenticated by the launcher.
+ * Get a UUID-keyed map of usable Microsoft accounts.
  * 
- * @returns {Array.<Object>} An array of each stored authenticated account.
+ * @returns {Object.<string, Object>} A UUID-keyed account map.
  */
 exports.getAuthAccounts = function(){
-    return config.authenticationDatabase
+    return getUsableMicrosoftAccounts()
 }
 
 /**
- * Returns the authenticated account with the given uuid. Value may
- * be null.
+ * Determine whether an account has the complete Microsoft structure required
+ * by authentication and launch flows.
+ *
+ * @param {Object} account The account to inspect.
+ * @returns {boolean} Whether the account is usable by runtime flows.
+ */
+exports.isMicrosoftAuthAccountUsable = function(account){
+    return isUsableMicrosoftAccount(account?.uuid, account)
+}
+
+/**
+ * Returns the usable Microsoft account with the given uuid.
  * 
  * @param {string} uuid The uuid of the authenticated account.
- * @returns {Object} The authenticated account with the given uuid.
+ * @returns {Object|undefined} The account, or undefined when it is not usable or does not exist.
  */
 exports.getAuthAccount = function(uuid){
-    return config.authenticationDatabase[uuid]
-}
-
-/**
- * Update the access token of an authenticated mojang account.
- * 
- * @param {string} uuid The uuid of the authenticated account.
- * @param {string} accessToken The new Access Token.
- * 
- * @returns {Object} The authenticated account object created by this action.
- */
-exports.updateMojangAuthAccount = function(uuid, accessToken){
-    config.authenticationDatabase[uuid].accessToken = accessToken
-    config.authenticationDatabase[uuid].type = 'mojang' // For gradual conversion.
-    return config.authenticationDatabase[uuid]
-}
-
-/**
- * Adds an authenticated mojang account to the database to be stored.
- * 
- * @param {string} uuid The uuid of the authenticated account.
- * @param {string} accessToken The accessToken of the authenticated account.
- * @param {string} username The username (usually email) of the authenticated account.
- * @param {string} displayName The in game name of the authenticated account.
- * 
- * @returns {Object} The authenticated account object created by this action.
- */
-exports.addMojangAuthAccount = function(uuid, accessToken, username, displayName){
-    config.selectedAccount = uuid
-    config.authenticationDatabase[uuid] = {
-        type: 'mojang',
-        accessToken,
-        username: username.trim(),
-        uuid: uuid.trim(),
-        displayName: displayName.trim()
-    }
-    return config.authenticationDatabase[uuid]
+    return getUsableMicrosoftAccounts()[uuid]
 }
 
 /**
@@ -357,17 +341,21 @@ exports.addMojangAuthAccount = function(uuid, accessToken, username, displayName
  * @param {string} msAccessToken The new Microsoft Access Token
  * @param {string} msRefreshToken The new Microsoft Refresh Token
  * @param {date} msExpires The date when the microsoft access token expires
- * @param {date} mcExpires The date when the mojang access token expires
+ * @param {date} mcExpires The date when the Minecraft access token expires
  * 
  * @returns {Object} The authenticated account object created by this action.
  */
 exports.updateMicrosoftAuthAccount = function(uuid, accessToken, msAccessToken, msRefreshToken, msExpires, mcExpires) {
-    config.authenticationDatabase[uuid].accessToken = accessToken
-    config.authenticationDatabase[uuid].expiresAt = mcExpires
-    config.authenticationDatabase[uuid].microsoft.access_token = msAccessToken
-    config.authenticationDatabase[uuid].microsoft.refresh_token = msRefreshToken
-    config.authenticationDatabase[uuid].microsoft.expires_at = msExpires
-    return config.authenticationDatabase[uuid]
+    const authAccount = exports.getAuthAccount(uuid)
+    if(authAccount == null){
+        return undefined
+    }
+    authAccount.accessToken = accessToken
+    authAccount.expiresAt = mcExpires
+    authAccount.microsoft.access_token = msAccessToken
+    authAccount.microsoft.refresh_token = msRefreshToken
+    authAccount.microsoft.expires_at = msExpires
+    return authAccount
 }
 
 /**
@@ -376,7 +364,7 @@ exports.updateMicrosoftAuthAccount = function(uuid, accessToken, msAccessToken, 
  * @param {string} uuid The uuid of the authenticated account.
  * @param {string} accessToken The accessToken of the authenticated account.
  * @param {string} name The in game name of the authenticated account.
- * @param {date} mcExpires The date when the mojang access token expires
+ * @param {date} mcExpires The date when the Minecraft access token expires
  * @param {string} msAccessToken The microsoft access token
  * @param {string} msRefreshToken The microsoft refresh token
  * @param {date} msExpires The date when the microsoft access token expires
@@ -384,8 +372,9 @@ exports.updateMicrosoftAuthAccount = function(uuid, accessToken, msAccessToken, 
  * @returns {Object} The authenticated account object created by this action.
  */
 exports.addMicrosoftAuthAccount = function(uuid, accessToken, name, mcExpires, msAccessToken, msRefreshToken, msExpires) {
+    const authAccounts = getAuthAccountsForWrite()
     config.selectedAccount = uuid
-    config.authenticationDatabase[uuid] = {
+    authAccounts[uuid] = {
         type: 'microsoft',
         accessToken,
         username: name.trim(),
@@ -398,7 +387,7 @@ exports.addMicrosoftAuthAccount = function(uuid, accessToken, name, mcExpires, m
             expires_at: msExpires
         }
     }
-    return config.authenticationDatabase[uuid]
+    return authAccounts[uuid]
 }
 
 /**
@@ -411,16 +400,11 @@ exports.addMicrosoftAuthAccount = function(uuid, accessToken, name, mcExpires, m
  * @returns {boolean} True if the account was removed, false if it never existed.
  */
 exports.removeAuthAccount = function(uuid){
-    if(config.authenticationDatabase[uuid] != null){
-        delete config.authenticationDatabase[uuid]
+    const authAccount = exports.getAuthAccount(uuid)
+    if(authAccount != null){
+        delete getStoredAuthAccounts()[uuid]
         if(config.selectedAccount === uuid){
-            const keys = Object.keys(config.authenticationDatabase)
-            if(keys.length > 0){
-                config.selectedAccount = keys[0]
-            } else {
-                config.selectedAccount = null
-                config.clientToken = null
-            }
+            config.selectedAccount = getSelectedAuthAccountUUID()
         }
         return true
     }
@@ -433,7 +417,8 @@ exports.removeAuthAccount = function(uuid){
  * @returns {Object} The selected authenticated account.
  */
 exports.getSelectedAccount = function(){
-    return config.authenticationDatabase[config.selectedAccount]
+    const authAccounts = getUsableMicrosoftAccounts()
+    return authAccounts[getSelectedAuthAccountUUID(authAccounts)]
 }
 
 /**
@@ -445,7 +430,7 @@ exports.getSelectedAccount = function(){
  * @returns {Object} The selected authenticated account.
  */
 exports.setSelectedAccount = function(uuid){
-    const authAcc = config.authenticationDatabase[uuid]
+    const authAcc = exports.getAuthAccount(uuid)
     if(authAcc != null) {
         config.selectedAccount = uuid
     }
@@ -772,6 +757,47 @@ exports.setLaunchDetached = function(launchDetached){
 }
 
 // Launcher Settings
+
+/**
+ * Retrieve the active launcher theme.
+ *
+ * @returns {string} A supported launcher theme ID.
+ */
+exports.getLauncherTheme = function(){
+    const theme = sanitizeLauncherTheme(config.settings.launcher.theme)
+    config.settings.launcher.theme = theme
+    return theme
+}
+
+/**
+ * Set the active launcher theme.
+ *
+ * @param {string} theme A launcher theme ID.
+ * @returns {string} The sanitized launcher theme ID.
+ */
+exports.setLauncherTheme = function(theme){
+    const sanitizedTheme = sanitizeLauncherTheme(theme)
+    config.settings.launcher.theme = sanitizedTheme
+    return sanitizedTheme
+}
+
+/**
+ * Check if the cinematic intro should be shown on startup.
+ *
+ * @returns {boolean} Whether the intro should be shown.
+ */
+exports.getShowIntro = function(){
+    return config.settings.launcher.showIntro !== false
+}
+
+/**
+ * Set whether the cinematic intro should be shown on startup.
+ *
+ * @param {boolean} showIntro Whether the intro should be shown.
+ */
+exports.setShowIntro = function(showIntro){
+    config.settings.launcher.showIntro = Boolean(showIntro)
+}
 
 /**
  * Check if the launcher should download prerelease versions.

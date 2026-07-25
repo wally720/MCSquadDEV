@@ -4,6 +4,7 @@ const semver = require('semver')
 
 const DropinModUtil  = require('./assets/js/dropinmodutil')
 const { MSFT_OPCODE, MSFT_REPLY_TYPE, MSFT_ERROR } = require('./assets/js/ipcconstants')
+const SettingsSafeDom = require('./assets/js/safedom')
 
 const settingsState = {
     invalid: new Set()
@@ -342,16 +343,6 @@ settingsNavDone.onclick = () => {
 const msftLoginLogger = LoggerUtil.getLogger('Microsoft Login')
 const msftLogoutLogger = LoggerUtil.getLogger('Microsoft Logout')
 
-// Bind the add mojang account button.
-/* Se elimina boton de Mojang
-document.getElementById('settingsAddMojangAccount').onclick = (e) => {
-    switchView(getCurrentView(), VIEWS.login, 500, 500, () => {
-        loginViewOnCancel = VIEWS.settings
-        loginViewOnSuccess = VIEWS.settings
-        loginCancelEnabled(true)
-    })
-} */
-
 // Bind the add microsoft account button.
 document.getElementById('settingsAddMicrosoftAccount').onclick = (e) => {
     switchView(getCurrentView(), VIEWS.waiting, 500, 500, () => {
@@ -503,6 +494,7 @@ function bindAuthAccountLogOut(){
 }
 
 let msAccDomElementCache
+
 /**
  * Process a log out.
  * 
@@ -512,32 +504,10 @@ let msAccDomElementCache
 function processLogOut(val, isLastAccount){
     const parent = val.closest('.settingsAuthAccount')
     const uuid = parent.getAttribute('uuid')
-    const prevSelAcc = ConfigManager.getSelectedAccount()
-    const targetAcc = ConfigManager.getAuthAccount(uuid)
-    if(targetAcc.type === 'microsoft') {
-        msAccDomElementCache = parent
-        switchView(getCurrentView(), VIEWS.waiting, 500, 500, () => {
-            ipcRenderer.send(MSFT_OPCODE.OPEN_LOGOUT, uuid, isLastAccount)
-        })
-    } else {
-        AuthManager.removeMojangAccount(uuid).then(() => {
-            if(!isLastAccount && uuid === prevSelAcc.uuid){
-                const selAcc = ConfigManager.getSelectedAccount()
-                refreshAuthAccountSelected(selAcc.uuid)
-                updateSelectedAccount(selAcc)
-                validateSelectedAccount()
-            }
-            if(isLastAccount) {
-                loginOptionsCancelEnabled(false)
-                loginOptionsViewOnLoginSuccess = VIEWS.settings
-                loginOptionsViewOnLoginCancel = VIEWS.loginOptions
-                switchView(getCurrentView(), VIEWS.loginOptions)
-            }
-        })
-        $(parent).fadeOut(250, () => {
-            parent.remove()
-        })
-    }
+    msAccDomElementCache = parent
+    switchView(getCurrentView(), VIEWS.waiting, 500, 500, () => {
+        ipcRenderer.send(MSFT_OPCODE.OPEN_LOGOUT, uuid, isLastAccount)
+    })
 }
 
 // Bind reply for Microsoft Logout.
@@ -620,7 +590,6 @@ function refreshAuthAccountSelected(uuid){
 }
 
 const settingsCurrentMicrosoftAccounts = document.getElementById('settingsCurrentMicrosoftAccounts')
-//const settingsCurrentMojangAccounts = document.getElementById('settingsCurrentMojangAccounts')
 
 /**
  * Add auth account elements for each one stored in the authentication database.
@@ -629,29 +598,32 @@ function populateAuthAccounts(){
     const authAccounts = ConfigManager.getAuthAccounts()
     const authKeys = Object.keys(authAccounts)
     if(authKeys.length === 0){
+        settingsCurrentMicrosoftAccounts.innerHTML = ''
         return
     }
     const selectedUUID = ConfigManager.getSelectedAccount().uuid
 
     let microsoftAuthAccountStr = ''
-    //let mojangAuthAccountStr = ''
 
     authKeys.forEach((val) => {
         const acc = authAccounts[val]
+        const escapedUuid = SettingsSafeDom.escapeHtml(acc.uuid)
+        const escapedDisplayName = SettingsSafeDom.escapeHtml(acc.displayName)
+        const encodedUuid = SettingsSafeDom.encodeUrlSegment(acc.uuid)
 
-        const accHtml = `<div class="settingsAuthAccount" uuid="${acc.uuid}">
+        const accHtml = `<div class="settingsAuthAccount" uuid="${escapedUuid}">
             <div class="settingsAuthAccountLeft">
-                <img class="settingsAuthAccountImage" alt="${acc.displayName}" src="https://mc-heads.net/body/${acc.uuid}/60">
+                <img class="settingsAuthAccountImage" alt="${escapedDisplayName}" src="https://mc-heads.net/body/${encodedUuid}/60">
             </div>
             <div class="settingsAuthAccountRight">
                 <div class="settingsAuthAccountDetails">
                     <div class="settingsAuthAccountDetailPane">
                         <div class="settingsAuthAccountDetailTitle">${Lang.queryJS('settings.authAccountPopulate.username')}</div>
-                        <div class="settingsAuthAccountDetailValue">${acc.displayName}</div>
+                        <div class="settingsAuthAccountDetailValue">${escapedDisplayName}</div>
                     </div>
                     <div class="settingsAuthAccountDetailPane">
                         <div class="settingsAuthAccountDetailTitle">${Lang.queryJS('settings.authAccountPopulate.uuid')}</div>
-                        <div class="settingsAuthAccountDetailValue">${acc.uuid}</div>
+                        <div class="settingsAuthAccountDetailValue">${escapedUuid}</div>
                     </div>
                 </div>
                 <div class="settingsAuthAccountActions">
@@ -663,16 +635,11 @@ function populateAuthAccounts(){
             </div>
         </div>`
 
-        if(acc.type === 'microsoft') {
-            microsoftAuthAccountStr += accHtml
-        } else {
-            mojangAuthAccountStr += accHtml
-        }
+        microsoftAuthAccountStr += accHtml
 
     })
 
     settingsCurrentMicrosoftAccounts.innerHTML = microsoftAuthAccountStr
-    //settingsCurrentMojangAccounts.innerHTML = mojangAuthAccountStr
 }
 
 /**
@@ -1265,13 +1232,14 @@ function bindRangeSlider(){
             document.onmousemove = (e) => {
 
                 // Distance from the beginning of the bar in pixels.
-                const diff = e.pageX - v.offsetLeft - track.offsetWidth/2
+                const sliderBounds = v.getBoundingClientRect()
+                const diff = e.clientX - sliderBounds.left - track.offsetWidth/2
                 
                 // Don't move the track off the bar.
-                if(diff >= 0 && diff <= v.offsetWidth-track.offsetWidth/2){
+                if(diff >= 0 && diff <= sliderBounds.width-track.offsetWidth/2){
 
                     // Convert the difference to a percentage.
-                    const perc = (diff/v.offsetWidth)*100
+                    const perc = (diff/sliderBounds.width)*100
                     // Calculate the percentage of the closest notch.
                     const notch = Number(perc/sliderMeta.inc).toFixed(0)*sliderMeta.inc
 

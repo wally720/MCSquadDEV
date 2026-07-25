@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "knownGaps": [
+    {
+      "id": "java-download-unawaited",
+      "acknowledgeReturnType": "undefined",
+      "asyncRejection": "unhandled"
+    },
+    {
+      "id": "full-repair-early-cleanup",
+      "verifyFailure": {
+        "destroyReceiverCalls": 0,
+        "taskbarReset": false,
+        "gameBuildCalls": 0
+      },
+      "downloadFailure": {
+        "destroyReceiverCalls": 0,
+        "taskbarReset": false,
+        "gameBuildCalls": 0
+      }
+    },
+    {
+      "id": "process-unrecognized-output",
+      "unrecognizedStdoutClearsLaunch": false,
+      "ordinaryStderrClearsLaunch": false,
+      "closeWithoutRpcClearsLaunch": false,
+      "launchWrapperErrorClearsLaunch": true
+    },
+    {
+      "id": "launch-double-click-window",
+      "visiblePlayClicks": 2,
+      "explicitLaunchCalls": 2,
+      "legacyLaunchClicks": 0,
+      "distributionRequestsBeforeLaunching": 2,
+      "launchingBeforeDistributionResolves": false
+    }
+  ]
+}

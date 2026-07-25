@@ -12,12 +12,12 @@ const { DistroAPI } = require('./assets/js/distromanager')
 
 let rscShouldLoad = false
 let fatalStartupError = false
+let introStarted = false
 
 // Mapping of each view to their container IDs.
 const VIEWS = {
     landing: '#landingContainer',
     loginOptions: '#loginOptionsContainer',
-    login: '#loginContainer',
     settings: '#settingsContainer',
     welcome: '#welcomeContainer',
     waiting: '#waitingContainer'
@@ -57,6 +57,55 @@ function getCurrentView(){
     return currentView
 }
 
+function getStartupView(){
+    return ConfigManager.getSelectedAccount() != null ? VIEWS.landing : VIEWS.loginOptions
+}
+
+function prepareLoginOptionsForStartup(){
+    loginOptionsCancelEnabled(false)
+    loginOptionsViewOnLoginSuccess = VIEWS.landing
+    loginOptionsViewOnLoginCancel = VIEWS.loginOptions
+}
+
+function hideStartupSurface(duration = 0, onComplete){
+    const complete = typeof onComplete === 'function' ? onComplete : () => {}
+    const surface = document.getElementById('startupSurface')
+    if(surface == null){
+        complete()
+        return
+    }
+    surface.setAttribute('aria-busy', 'false')
+    if(duration > 0){
+        $('#startupSurface').fadeOut(duration, () => {
+            surface.hidden = true
+            complete()
+        })
+    } else {
+        surface.hidden = true
+        complete()
+    }
+}
+
+function showIntroForStartup(){
+    if(introStarted || fatalStartupError || !ConfigManager.getShowIntro()){
+        return false
+    }
+
+    const intro = window.createSquadArcadeIntro?.()
+    if(intro == null){
+        return false
+    }
+
+    introStarted = true
+    window.squadArcadeIntro = intro
+    currentView = VIEWS.welcome
+    document.getElementById('main').style.display = 'block'
+    document.querySelector(VIEWS.welcome).style.display = 'block'
+    hideStartupSurface()
+    intro.start()
+    return true
+}
+
 async function showMainUI(data){
 
     if(!isDev){
@@ -67,7 +116,10 @@ async function showMainUI(data){
     await prepareSettings(true)
     updateSelectedServer(data.getServerById(ConfigManager.getSelectedServer()))
     refreshServerStatus()
-    setTimeout(() => {
+    const finishRuntimeStartup = () => {
+        if(fatalStartupError){
+            return
+        }
         document.getElementById('frameBar').style.backgroundColor = 'rgba(0, 0, 0, 0.5)'
         document.body.style.backgroundImage = `url('assets/images/backgrounds/${document.body.getAttribute('bkid')}.jpg')`
         $('#main').show()
@@ -80,51 +132,55 @@ async function showMainUI(data){
             validateSelectedAccount()
         }
 
-        if(ConfigManager.isFirstLaunch()){
-            currentView = VIEWS.welcome
-            $(VIEWS.welcome).fadeIn(1000)
+        const intro = window.squadArcadeIntro
+        if(intro != null){
+            intro.setRuntimeReady()
         } else {
-            if(isLoggedIn){
-                currentView = VIEWS.landing
-                $(VIEWS.landing).fadeIn(1000)
-            } else {
-                loginOptionsCancelEnabled(false)
-                loginOptionsViewOnLoginSuccess = VIEWS.landing
-                loginOptionsViewOnLoginCancel = VIEWS.loginOptions
-                currentView = VIEWS.loginOptions
-                $(VIEWS.loginOptions).fadeIn(1000)
+            const startupView = getStartupView()
+            if(startupView === VIEWS.loginOptions){
+                prepareLoginOptionsForStartup()
             }
+            currentView = startupView
+            $(startupView).fadeIn(1000)
+            setTimeout(() => {
+                hideStartupSurface(500)
+            }, 250)
         }
+    }
 
-        setTimeout(() => {
-            $('#loadingContainer').fadeOut(500, () => {
-                $('#loadSpinnerImage').removeClass('rotating')
-            })
-        }, 250)
-        
-    }, 750)
-    // Disable tabbing to the news container.
-    initNews().then(() => {
-        $('#newsContainer *').attr('tabindex', '-1')
-    })
+    if(window.squadArcadeIntro != null){
+        finishRuntimeStartup()
+    } else {
+        setTimeout(finishRuntimeStartup, 750)
+    }
 }
 
 function showFatalStartupError(){
-    setTimeout(() => {
-        $('#loadingContainer').fadeOut(250, () => {
-            document.getElementById('overlayContainer').style.background = 'none'
-            setOverlayContent(
-                Lang.queryJS('uibinder.startup.fatalErrorTitle'),
-                Lang.queryJS('uibinder.startup.fatalErrorMessage'),
-                Lang.queryJS('uibinder.startup.closeButton')
-            )
-            setOverlayHandler(() => {
-                const window = remote.getCurrentWindow()
-                window.close()
-            })
-            toggleOverlay(true)
+    const intro = window.squadArcadeIntro
+    const renderFatalError = () => {
+        intro?.cancelForFatal()
+        $('#main').hide()
+        document.getElementById('overlayContainer').style.background = 'none'
+        setOverlayContent(
+            Lang.queryJS('uibinder.startup.fatalErrorTitle'),
+            Lang.queryJS('uibinder.startup.fatalErrorMessage'),
+            Lang.queryJS('uibinder.startup.closeButton')
+        )
+        setOverlayHandler(() => {
+            const window = remote.getCurrentWindow()
+            window.close()
         })
-    }, 750)
+        toggleOverlay(true)
+    }
+
+    if(intro != null){
+        hideStartupSurface()
+        renderFatalError()
+    } else {
+        setTimeout(() => {
+            hideStartupSurface(250, renderFatalError)
+        }, 750)
+    }
 }
 
 /**
@@ -135,7 +191,6 @@ function showFatalStartupError(){
 function onDistroRefresh(data){
     updateSelectedServer(data.getServerById(ConfigManager.getSelectedServer()))
     refreshServerStatus()
-    initNews()
     syncModConfigurations(data)
     ensureJavaSettings(data)
 }
@@ -341,36 +396,21 @@ async function validateSelectedAccount(){
             )
             setOverlayHandler(() => {
 
-                const isMicrosoft = selectedAcc.type === 'microsoft'
-
-                if(isMicrosoft) {
-                    // Empty for now
-                } else {
-                    // Mojang
-                    // For convenience, pre-populate the username of the account.
-                    document.getElementById('loginUsername').value = selectedAcc.username
-                    validateEmail(selectedAcc.username)
-                }
-                
                 loginOptionsViewOnLoginSuccess = getCurrentView()
                 loginOptionsViewOnLoginCancel = VIEWS.loginOptions
 
                 if(accLen > 0) {
                     loginOptionsViewOnCancel = getCurrentView()
                     loginOptionsViewCancelHandler = () => {
-                        if(isMicrosoft) {
-                            ConfigManager.addMicrosoftAuthAccount(
-                                selectedAcc.uuid,
-                                selectedAcc.accessToken,
-                                selectedAcc.username,
-                                selectedAcc.expiresAt,
-                                selectedAcc.microsoft.access_token,
-                                selectedAcc.microsoft.refresh_token,
-                                selectedAcc.microsoft.expires_at
-                            )
-                        } else {
-                            ConfigManager.addMojangAuthAccount(selectedAcc.uuid, selectedAcc.accessToken, selectedAcc.username, selectedAcc.displayName)
-                        }
+                        ConfigManager.addMicrosoftAuthAccount(
+                            selectedAcc.uuid,
+                            selectedAcc.accessToken,
+                            selectedAcc.username,
+                            selectedAcc.expiresAt,
+                            selectedAcc.microsoft.access_token,
+                            selectedAcc.microsoft.refresh_token,
+                            selectedAcc.microsoft.expires_at
+                        )
                         ConfigManager.save()
                         validateSelectedAccount()
                     }
@@ -422,6 +462,7 @@ function setSelectedAccount(uuid){
 document.addEventListener('readystatechange', async () => {
 
     if (document.readyState === 'interactive' || document.readyState === 'complete'){
+        showIntroForStartup()
         if(rscShouldLoad){
             rscShouldLoad = false
             if(!fatalStartupError){

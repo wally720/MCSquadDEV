@@ -13,8 +13,3 @@ mediaDiscordURL = "http://discord.mcsquad.net"
 [ejs.settings]
 sourceGithubLink = "https://github.com/wally720/MCSquad"
 supportLink = "https://github.com/wally720/MCSquad/issues"
-
-[ejs.welcome]
-welcomeHeader = "Bienvenido a la MCSquad"
-welcomeDescription = "Acá encontraras el acceso a los diferentes proyectos o servidores que tenemos preparados para ti. Estate atento a las actualizaciones y novedades que estaremos anunciando."
-welcomeDescCTA = "Estas preparado para la aventura?."
