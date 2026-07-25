@@ -865,6 +865,13 @@
     filter: brightness(0) invert(1);
 }
 
+.squad-arcade .sa-footer a[aria-label='GitHub'] img,
+.squad-arcade .sa-footer a[aria-label='Discord'] img,
+.squad-arcade .sa-footer a[aria-label='YouTube'] img {
+    width: 17px;
+    height: 17px;
+}
+
 .squad-arcade .sa-footer b {
     margin-left: 8px;
     color: var(--sa-secondary);
