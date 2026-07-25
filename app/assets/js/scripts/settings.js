@@ -1228,13 +1228,14 @@ function bindRangeSlider(){
             document.onmousemove = (e) => {
 
                 // Distance from the beginning of the bar in pixels.
-                const diff = e.pageX - v.offsetLeft - track.offsetWidth/2
+                const sliderBounds = v.getBoundingClientRect()
+                const diff = e.clientX - sliderBounds.left - track.offsetWidth/2
                 
                 // Don't move the track off the bar.
-                if(diff >= 0 && diff <= v.offsetWidth-track.offsetWidth/2){
+                if(diff >= 0 && diff <= sliderBounds.width-track.offsetWidth/2){
 
                     // Convert the difference to a percentage.
-                    const perc = (diff/v.offsetWidth)*100
+                    const perc = (diff/sliderBounds.width)*100
                     // Calculate the percentage of the closest notch.
                     const notch = Number(perc/sliderMeta.inc).toFixed(0)*sliderMeta.inc
 

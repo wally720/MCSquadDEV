@@ -3151,6 +3151,72 @@ function testMicrosoftAccountLogoutRoute(){
     assert.equal(target.parent.removed, false, 'Microsoft account still waits for its IPC reply')
 }
 
+function testRamSliderViewportCoordinates(){
+    const sliderBounds = { left: 256, width: 200 }
+    const horizontalScroll = 640
+    const track = { offsetWidth: 10, style: {}, onmousedown: null }
+    const bar = { style: {} }
+    const attributes = new Map([
+        ['min', '0'],
+        ['max', '10'],
+        ['step', '1'],
+        ['value', '0']
+    ])
+    const slider = {
+        offsetLeft: 42,
+        offsetWidth: sliderBounds.width,
+        getAttribute: name => attributes.get(name),
+        setAttribute: (name, value) => attributes.set(name, String(value)),
+        getElementsByClassName: name => name === 'rangeSliderTrack' ? [track] : [bar],
+        getBoundingClientRect: () => sliderBounds,
+        dispatchEvent: () => true
+    }
+    const documentStub = {
+        onmousemove: null,
+        onmouseup: null,
+        getElementsByClassName: () => [slider]
+    }
+    const { bindRangeSlider } = loadFunctions(
+        settingsSource,
+        ['calculateRangeSliderMeta', 'updateRangedSlider', 'bindRangeSlider'],
+        {
+            document: documentStub,
+            MouseEvent: class MouseEvent {}
+        }
+    )
+
+    bindRangeSlider()
+    track.onmousedown()
+    const moveTo = (clientX) => documentStub.onmousemove({
+        clientX,
+        pageX: clientX + horizontalScroll
+    })
+    const assertPosition = (value, percentage) => {
+        assert.equal(attributes.get('value'), String(value))
+        assert.equal(track.style.left, `${percentage}%`)
+        assert.equal(bar.style.width, `${percentage}%`)
+    }
+
+    moveTo(261)
+    assertPosition(0, 0)
+
+    moveTo(350.8)
+    assertPosition(4, 40)
+    moveTo(351.2)
+    assertPosition(5, 50)
+
+    moveTo(361)
+    assertPosition(5, 50)
+
+    moveTo(260.9)
+    assertPosition(5, 50)
+    moveTo(456.1)
+    assertPosition(5, 50)
+
+    moveTo(456)
+    assertPosition(10, 100)
+}
+
 async function run(){
     await scenario('functional Settings markup snapshot', testMarkupContract)
     await scenario('retired Mojang login entry points stay absent', testRetiredMojangLoginContract)
@@ -3161,6 +3227,7 @@ async function run(){
     await scenario('ProcessBuilder emits msa for modern and legacy arguments', testProcessBuilderMicrosoftUserType)
     await scenario('Minecraft status uses the local dependency-free client', testMinecraftServerStatusClient)
     await scenario('Microsoft logout remains on the IPC flow', testMicrosoftAccountLogoutRoute)
+    await scenario('RAM sliders use viewport coordinates inside shifted panels', testRamSliderViewportCoordinates)
     await scenario('prepareSettings first-load order', () => testPrepareSettings(true))
     await scenario('prepareSettings refresh order', () => testPrepareSettings(false))
     await scenario('normal, Account, Mods, and Update routes', testSettingsRoutes)
