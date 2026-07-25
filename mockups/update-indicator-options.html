@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Comparativa de indicadores de actualización</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --page: #090b18;
+            --panel: rgba(18, 18, 39, .88);
+            --panel-soft: rgba(255, 255, 255, .06);
+            --ink: #fff8ec;
+            --muted: #b7b4c8;
+            --line: rgba(255, 255, 255, .16);
+            --accent: #b86cff;
+            --accent-dark: #27144e;
+            --accent-soft: #ead6ff;
+            --signal: #69f6ad;
+            --warning: #ffd267;
+            --danger: #ff856d;
+            --shadow: 0 28px 90px rgba(0, 0, 0, .48);
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            min-width: 320px;
+            min-height: 100vh;
+            margin: 0;
+            padding: 30px;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 30%),
+                radial-gradient(circle at 92% 100%, rgba(43, 223, 166, .12), transparent 32%),
+                var(--page);
+        }
+
+        button { font: inherit; }
+
+        .page { max-width: 1420px; margin: 0 auto; }
+
+        .eyebrow {
+            color: var(--signal);
+            font: 800 11px/1.2 monospace;
+            letter-spacing: .24em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            max-width: 850px;
+            margin: 10px 0 8px;
+            font-size: clamp(32px, 5vw, 68px);
+            line-height: .92;
+            letter-spacing: -.065em;
+        }
+
+        .intro {
+            max-width: 760px;
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 280px;
+            gap: 20px;
+            align-items: start;
+            margin-top: 28px;
+        }
+
+        .launcher {
+            position: relative;
+            min-height: 650px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, .2);
+            background: linear-gradient(145deg, #332b67, #101126 68%);
+            box-shadow: var(--shadow);
+        }
+
+        .launcher::before,
+        .launcher::after {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            content: "";
+        }
+
+        .launcher::before {
+            opacity: .2;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, .08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, .08) 1px, transparent 1px);
+            background-size: 28px 28px;
+            mask-image: linear-gradient(135deg, black, transparent 75%);
+        }
+
+        .launcher::after {
+            background: linear-gradient(120deg, transparent 24%, rgba(255,255,255,.12) 24.2%, transparent 25%, transparent 70%, rgba(255,255,255,.08) 70.2%, transparent 71%);
+            mix-blend-mode: screen;
+        }
+
+        .launcher.theme-overworld { --accent: #b86cff; --accent-dark: #27144e; --accent-soft: #ead6ff; --signal: #69f6ad; background: linear-gradient(145deg, #4e4d91, #111729 70%); }
+        .launcher.theme-creeper { --accent: #68e55b; --accent-dark: #153f28; --accent-soft: #d8ffc6; --signal: #a7ff8d; background: linear-gradient(145deg, #255c4d, #0e211f 70%); }
+        .launcher.theme-nether { --accent: #ff6b4d; --accent-dark: #542018; --accent-soft: #ffd0a8; --signal: #ffc65c; background: linear-gradient(145deg, #783326, #21111b 70%); }
+        .launcher.theme-ender { --accent: #45d9dc; --accent-dark: #133d56; --accent-soft: #c9ffff; --signal: #a58cff; background: linear-gradient(145deg, #263b70, #100d29 70%); }
+
+        .topbar,
+        .home,
+        .footer { position: relative; z-index: 1; }
+
+        .topbar {
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) auto;
+            gap: 22px;
+            align-items: center;
+            min-height: 78px;
+            padding: 15px 24px;
+            border-bottom: 2px solid rgba(0, 0, 0, .32);
+            background: color-mix(in srgb, var(--accent-soft) 86%, white 14%);
+            color: var(--accent-dark);
+        }
+
+        .brand { display: flex; gap: 10px; align-items: center; min-width: 0; transform: rotate(-2deg); }
+        .brand img { width: 42px; height: 42px; border: 3px solid var(--accent-dark); object-fit: cover; }
+        .brand-name { font-size: clamp(18px, 2vw, 29px); font-weight: 900; letter-spacing: -.04em; white-space: nowrap; }
+        .brand-name strong { color: var(--accent); }
+        .brand-meta { display: block; margin-top: 2px; font: 800 9px/1 monospace; letter-spacing: .14em; }
+
+        .nav { display: flex; gap: 4px; align-items: stretch; }
+        .nav-item,
+        .theme-chip,
+        .variant-button,
+        .state-button { border: 1px solid transparent; cursor: pointer; }
+        .nav-item { min-width: 80px; padding: 15px 13px; border-right-color: rgba(0, 0, 0, .23); color: var(--accent-dark); background: rgba(255,255,255,.14); font: 900 11px monospace; letter-spacing: .09em; }
+        .nav-item:first-child { border-left: 2px solid rgba(0,0,0,.16); }
+        .nav-item:hover { background: rgba(255,255,255,.4); }
+
+        .home { padding: 36px 34px 26px; }
+        .home-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(210px, .7fr); gap: 22px; }
+        .kicker { color: var(--signal); font: 900 10px monospace; letter-spacing: .16em; text-transform: uppercase; }
+        .hero { min-height: 260px; padding: 30px; border: 2px solid var(--accent); background: linear-gradient(112deg, color-mix(in srgb, var(--accent) 82%, white 18%), #69efb1); color: #081421; box-shadow: 9px 9px 0 rgba(0,0,0,.35); }
+        .hero h2 { max-width: 600px; margin: 16px 0 9px; font-size: clamp(32px, 5vw, 66px); line-height: .9; letter-spacing: -.07em; }
+        .hero p { max-width: 540px; margin: 0; font-size: 13px; font-weight: 700; line-height: 1.45; }
+        .account { display: flex; min-height: 260px; flex-direction: column; justify-content: space-between; padding: 22px; border: 2px solid var(--accent-soft); background: rgba(12, 10, 28, .55); }
+        .account-avatar { display: grid; width: 86px; height: 120px; margin: 8px auto 0; place-items: center; border: 3px solid var(--accent); background: linear-gradient(135deg, var(--accent), var(--signal)); color: var(--accent-dark); font-size: 45px; font-weight: 900; }
+        .account strong { display: block; margin-top: 16px; font-size: 17px; }
+
+        .mission-card,
+        .toast-card { border: 2px solid var(--signal); background: linear-gradient(135deg, rgba(20, 50, 43, .96), rgba(9, 22, 33, .96)); box-shadow: 8px 8px 0 rgba(0,0,0,.32); }
+
+        .mission-card { display: grid; grid-template-columns: 52px 1fr auto; gap: 14px; align-items: center; margin-top: 22px; padding: 15px 18px; }
+        .mission-icon { display: grid; width: 42px; height: 42px; place-items: center; border: 2px solid var(--warning); color: var(--warning); font-size: 22px; transform: rotate(45deg); }
+        .mission-icon span { transform: rotate(-45deg); }
+        .mission-copy strong { display: block; color: var(--signal); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+        .mission-copy p { margin: 4px 0 0; color: #e8f8eb; font-size: 12px; }
+        .mission-action,
+        .toast-action { padding: 10px 12px; border: 0; color: #07120d; background: var(--signal); font: 900 10px monospace; letter-spacing: .08em; cursor: pointer; }
+
+        .actions { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(120px, .5fr)); gap: 14px; margin-top: 22px; }
+        .action { min-height: 76px; padding: 15px; border: 2px solid var(--accent); color: #07120d; background: color-mix(in srgb, var(--signal) 82%, white 18%); font-weight: 900; text-align: left; }
+        .action.secondary { color: var(--accent-dark); background: color-mix(in srgb, var(--accent) 70%, white 30%); }
+        .action small { display: block; margin-top: 6px; font: 800 9px monospace; }
+
+        .indicator-sticker,
+        .toast-card,
+        .mission-card { display: none; }
+        .variant-sticker .indicator-sticker,
+        .variant-toast .toast-card,
+        .variant-mission .mission-card,
+        .variant-hybrid .indicator-sticker,
+        .variant-hybrid .toast-card { display: grid; }
+
+        .indicator-sticker { position: absolute; top: -13px; right: -12px; z-index: 3; min-width: 54px; padding: 9px 8px; border: 3px solid var(--accent-dark); color: var(--accent-dark); background: var(--warning); box-shadow: 5px 5px 0 rgba(0,0,0,.35); font: 900 13px/1 monospace; text-align: center; transform: rotate(8deg); }
+        .indicator-sticker::after { position: absolute; right: 3px; bottom: -7px; width: 8px; height: 8px; background: var(--warning); content: ""; transform: skew(25deg); }
+
+        .toast-card { position: absolute; top: 94px; right: 24px; z-index: 4; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: min(390px, calc(100% - 48px)); padding: 14px 15px; animation: toast-in .42s cubic-bezier(.2,.8,.2,1) both; }
+        .toast-icon { display: grid; width: 30px; height: 30px; place-items: center; border: 2px solid var(--warning); color: var(--warning); font-weight: 900; }
+        .toast-copy strong { display: block; color: var(--signal); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+        .toast-copy span { display: block; margin-top: 4px; color: #e8f8eb; font-size: 11px; }
+        .toast-action { background: var(--warning); }
+
+        .state-ready .mission-card,
+        .state-ready .toast-card { border-color: var(--warning); }
+        .state-ready .mission-copy strong,
+        .state-ready .toast-copy strong { color: var(--warning); }
+        .state-none .indicator-sticker,
+        .state-none .toast-card,
+        .state-none .mission-card { display: none !important; }
+
+        .footer { display: flex; justify-content: space-between; gap: 16px; padding: 13px 24px; color: var(--muted); background: rgba(5, 8, 22, .64); font: 800 10px monospace; letter-spacing: .1em; }
+
+        .controls { padding: 20px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
+        .controls h3 { margin: 0 0 5px; font-size: 16px; }
+        .controls p { margin: 0 0 18px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+        .control-label { display: block; margin: 18px 0 8px; color: var(--signal); font: 900 10px monospace; letter-spacing: .16em; text-transform: uppercase; }
+        .variant-button,
+        .state-button,
+        .theme-chip { display: block; width: 100%; margin: 7px 0; padding: 11px 12px; border-color: var(--line); color: var(--ink); background: var(--panel-soft); text-align: left; }
+        .variant-button:hover,
+        .variant-button[aria-pressed="true"],
+        .state-button:hover,
+        .state-button[aria-pressed="true"],
+        .theme-chip:hover,
+        .theme-chip[aria-pressed="true"] { border-color: var(--signal); color: var(--signal); background: rgba(105,246,173,.1); }
+        .variant-button b,
+        .state-button b { display: block; margin-bottom: 4px; font-size: 12px; }
+        .variant-button span,
+        .state-button span { color: var(--muted); font-size: 11px; line-height: 1.35; }
+        .theme-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+        .theme-chip { margin: 0; text-align: center; }
+        .theme-chip[data-theme="overworld"] { color: #d6bbff; }
+        .theme-chip[data-theme="creeper"] { color: #a7ff8d; }
+        .theme-chip[data-theme="nether"] { color: #ffc65c; }
+        .theme-chip[data-theme="ender"] { color: #a58cff; }
+        .note { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font: 11px/1.6 monospace; }
+
+        @keyframes toast-in { from { opacity: 0; transform: translateY(-12px) translateX(12px); } to { opacity: 1; transform: translateY(0) translateX(0); } }
+
+        @media (max-width: 920px) {
+            body { padding: 18px; }
+            .workspace { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 680px) {
+            .topbar { grid-template-columns: 1fr; gap: 12px; padding: 15px; }
+            .nav { overflow-x: auto; }
+            .nav-item { min-width: 70px; padding-inline: 9px; }
+            .home { padding: 22px 16px 18px; }
+            .home-grid { grid-template-columns: 1fr; }
+            .hero, .account { min-height: 210px; }
+            .mission-card { grid-template-columns: 42px minmax(0, 1fr); }
+            .mission-action { grid-column: 2; justify-self: start; }
+            .actions { grid-template-columns: 1fr 1fr; }
+            .action:first-child { grid-column: 1 / -1; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <div class="eyebrow">MCSQUAD / COMPARATIVA VISUAL</div>
+        <h1>Una actualización que se nota sin romper el Home.</h1>
+        <p class="intro">Probá cuatro tratamientos visuales sobre una Home inspirada en Squad Arcade. Ninguna opción conecta con electron-updater ni modifica el launcher real.</p>
+
+        <section class="workspace">
+            <article class="launcher theme-overworld variant-sticker state-available" id="launcher" aria-label="Vista previa del launcher">
+                <header class="topbar">
+                    <div class="brand">
+                        <img src="../app/assets/images/SealCircle.png" alt="">
+                        <div>
+                            <div class="brand-name">MC<strong>SQUAD</strong></div>
+                            <span class="brand-meta">ARCADE LAUNCHER · 1.1.5</span>
+                        </div>
+                    </div>
+                    <nav class="nav" aria-label="Navegación principal">
+                        <button class="nav-item" type="button">INICIO</button>
+                        <button class="nav-item" type="button">MODS</button>
+                        <button class="nav-item" type="button" id="settingsButton">AJUSTES<span class="indicator-sticker" aria-hidden="true">NEW</span></button>
+                    </nav>
+                </header>
+
+                <div class="toast-card" role="status">
+                    <div class="toast-icon" aria-hidden="true">!</div>
+                    <div class="toast-copy"><strong id="toastTitle">Nueva actualización</strong><span id="toastText">La versión está lista para revisar.</span></div>
+                    <button class="toast-action" type="button">VER</button>
+                </div>
+
+                <section class="home">
+                    <div class="home-grid">
+                        <article class="hero">
+                            <div class="kicker">Partida seleccionada</div>
+                            <h2>AXIOSMC DEV — UN MUNDO POR CONSTRUIR</h2>
+                            <p>Un servidor cooperativo de construcción, exploración e infraestructura. Construí un legado con tu escuadra.</p>
+                        </article>
+                        <aside class="account">
+                            <div class="kicker">Cuenta conectada</div>
+                            <div class="account-avatar" aria-hidden="true">P1</div>
+                            <strong>WallyenTeras</strong>
+                        </aside>
+                    </div>
+
+                    <article class="mission-card" role="status">
+                        <div class="mission-icon" aria-hidden="true"><span>◆</span></div>
+                        <div class="mission-copy"><strong id="missionTitle">Misión disponible</strong><p id="missionText">Revisá las novedades del launcher.</p></div>
+                        <button class="mission-action" type="button">VER UPDATE</button>
+                    </article>
+
+                    <div class="actions">
+                        <button class="action" type="button">▶ &nbsp; JUGAR<small>LISTO PARA INICIAR</small></button>
+                        <button class="action secondary" type="button">+ &nbsp; MODS<small>ARMÁ TU PARTIDA</small></button>
+                        <button class="action secondary" type="button">◆ &nbsp; AJUSTES<small>CONFIGURÁ EL JUEGO</small></button>
+                    </div>
+                </section>
+                <footer class="footer"><span>MCSQUAD NETWORK</span><span>GITHUB · DISCORD · YOUTUBE</span></footer>
+            </article>
+
+            <aside class="controls">
+                <h3>Comparar conceptos</h3>
+                <p>Elegí una propuesta y simulá sus estados antes de llevarla al launcher real.</p>
+
+                <span class="control-label">Tratamiento</span>
+                <button class="variant-button" type="button" data-variant="sticker" aria-pressed="true"><b>Sticker NEW</b><span>Notorio, compacto y conectado a Ajustes.</span></button>
+                <button class="variant-button" type="button" data-variant="toast" aria-pressed="false"><b>Toast arcade</b><span>Aviso temporal con acción inmediata.</span></button>
+                <button class="variant-button" type="button" data-variant="mission" aria-pressed="false"><b>Misión disponible</b><span>Una tarjeta integrada en el Home.</span></button>
+                <button class="variant-button" type="button" data-variant="hybrid" aria-pressed="false"><b>Sticker + toast</b><span>Máxima visibilidad, con dos niveles de señal.</span></button>
+
+                <span class="control-label">Estado</span>
+                <button class="state-button" type="button" data-state="available" aria-pressed="true"><b>Disponible</b><span>La versión puede revisarse.</span></button>
+                <button class="state-button" type="button" data-state="ready" aria-pressed="false"><b>Lista para instalar</b><span>La acción ya está disponible.</span></button>
+                <button class="state-button" type="button" data-state="none" aria-pressed="false"><b>Sin actualización</b><span>Home completamente limpia.</span></button>
+
+                <span class="control-label">Tema</span>
+                <div class="theme-row">
+                    <button class="theme-chip" type="button" data-theme="overworld" aria-pressed="true">OVERWORLD</button>
+                    <button class="theme-chip" type="button" data-theme="creeper" aria-pressed="false">CREEPER</button>
+                    <button class="theme-chip" type="button" data-theme="nether" aria-pressed="false">NETHER</button>
+                    <button class="theme-chip" type="button" data-theme="ender" aria-pressed="false">ENDER</button>
+                </div>
+                <div class="note" id="note">Recomendación inicial: el sticker destaca sin competir con JUGAR.</div>
+            </aside>
+        </section>
+    </main>
+
+    <script>
+        const launcher = document.getElementById('launcher')
+        const note = document.getElementById('note')
+        const missionTitle = document.getElementById('missionTitle')
+        const missionText = document.getElementById('missionText')
+        const toastTitle = document.getElementById('toastTitle')
+        const toastText = document.getElementById('toastText')
+
+        const stateCopy = {
+            available: {
+                missionTitle: 'Misión disponible',
+                missionText: 'Revisá las novedades del launcher.',
+                toastTitle: 'Nueva actualización',
+                toastText: 'La versión está lista para revisar.'
+            },
+            ready: {
+                missionTitle: 'Misión lista para instalar',
+                missionText: 'Reiniciá el launcher para aplicar la actualización.',
+                toastTitle: 'Actualización lista',
+                toastText: 'Podés instalarla cuando termines tu partida.'
+            },
+            none: {
+                missionTitle: 'Misión disponible',
+                missionText: 'Revisá las novedades del launcher.',
+                toastTitle: 'Nueva actualización',
+                toastText: 'La versión está lista para revisar.'
+            }
+        }
+
+        function setPressed(selector, target){
+            document.querySelectorAll(selector).forEach(button => {
+                button.setAttribute('aria-pressed', String(button === target))
+            })
+        }
+
+        document.querySelectorAll('[data-variant]').forEach(button => {
+            button.addEventListener('click', () => {
+                launcher.classList.remove('variant-sticker', 'variant-toast', 'variant-mission', 'variant-hybrid')
+                launcher.classList.add(`variant-${button.dataset.variant}`)
+                setPressed('[data-variant]', button)
+                note.textContent = {
+                    sticker: 'El sticker destaca sin competir con JUGAR.',
+                    toast: 'El toast explica el evento, pero desaparece después de un tiempo.',
+                    mission: 'La tarjeta convierte la actualización en una acción visible del Home.',
+                    hybrid: 'La combinación comunica mejor, pero suma más ruido visual.'
+                }[button.dataset.variant]
+            })
+        })
+
+        document.querySelectorAll('[data-state]').forEach(button => {
+            button.addEventListener('click', () => {
+                const state = button.dataset.state
+                const copy = stateCopy[state]
+                launcher.classList.remove('state-available', 'state-ready', 'state-none')
+                launcher.classList.add(`state-${state}`)
+                missionTitle.textContent = copy.missionTitle
+                missionText.textContent = copy.missionText
+                toastTitle.textContent = copy.toastTitle
+                toastText.textContent = copy.toastText
+                setPressed('[data-state]', button)
+            })
+        })
+
+        document.querySelectorAll('[data-theme]').forEach(button => {
+            button.addEventListener('click', () => {
+                const theme = button.dataset.theme
+                launcher.classList.remove('theme-overworld', 'theme-creeper', 'theme-nether', 'theme-ender')
+                launcher.classList.add(`theme-${theme}`)
+                setPressed('[data-theme]', button)
+            })
+        })
+    </script>
+</body>
+</html>

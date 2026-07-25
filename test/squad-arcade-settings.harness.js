@@ -944,14 +944,19 @@ async function testSettingsRoutes(){
         settingsNavMods: new FakeElement({ id: 'settingsNavMods' }),
         settingsNavUpdate: new FakeElement({ id: 'settingsNavUpdate' }),
         settingsUpdateAvailableIndicator: new FakeElement({ id: 'settingsUpdateAvailableIndicator' }),
-        updateBadge: new FakeElement({ id: 'updateBadge', tagName: 'BUTTON' }),
+        updateMission: new FakeElement({ id: 'updateMission', tagName: 'BUTTON' }),
         updateBrand: new FakeElement({ id: 'updateBrand' })
     }
-    const updateBadgeLabel = new FakeElement()
-    elements.updateBadge.querySelector = selector => selector === '[data-sa-update-label]' ? updateBadgeLabel : null
+    const updateMissionTitle = new FakeElement()
+    const updateMissionDescription = new FakeElement()
+    elements.updateMission.querySelector = selector => {
+        if(selector === '[data-sa-update-title]') return updateMissionTitle
+        if(selector === '[data-sa-update-description]') return updateMissionDescription
+        return null
+    }
     const document = { getElementById: id => elements[id] || null }
-    document.querySelector = selector => selector === '[data-sa-update-badge]'
-        ? elements.updateBadge
+    document.querySelector = selector => selector === '[data-sa-update-mission]'
+        ? elements.updateMission
         : selector === '.sa-brand' ? elements.updateBrand : null
     const settingsUpdateButtonStatus = (...args) => buttonCalls.push(args)
     const common = {
@@ -1002,15 +1007,28 @@ async function testSettingsRoutes(){
 
     await open.openSettings('settingsNavUpdate', true)
     assert.deepEqual(calls.splice(0), ['prepare', 'switch:#settingsContainer', 'tab:settingsNavUpdate:false'])
-    assert.equal(elements.settingsNavUpdate.focusCalls, 1, 'badge navigation focuses the Updates tab after the view opens')
+    assert.equal(elements.settingsNavUpdate.focusCalls, 1, 'mission navigation focuses the Updates tab after the view opens')
 
     const update = loadFunctions(uiCoreSource, ['handleAutoUpdateNotification', 'showUpdateUI', 'setUpdateUIState', 'clearUpdateUI', 'clearTransientUpdateUI', 'setTransientUpdateButtonStatus', 'restoreUpdateCheckButton', 'renderUpdateUI'], common)
+    update.showUpdateUI({}, 'available')
+    assert.equal(elements.updateMission.hidden, false)
+    assert.equal(elements.updateMission.getAttribute('data-update-state'), 'available')
+    assert.equal(updateMissionTitle.textContent, 'Misión disponible')
+    assert.equal(updateMissionDescription.textContent, 'Hay una actualización para revisar.')
+    assert.equal(elements.updateMission.getAttribute('aria-label'), 'Misión disponible. Abrir Ajustes para revisar la actualización.')
+    update.clearUpdateUI()
+    assert.equal(elements.updateMission.hidden, true)
+    assert.equal(updateMissionTitle.textContent, 'Misión disponible')
+    assert.equal(updateMissionDescription.textContent, 'No hay actualizaciones pendientes.')
     update.handleAutoUpdateNotification('update-downloaded', { version: '2.0.0' })
     assert.equal(elements.settingsNavUpdate.hasAttribute('update'), true)
     assert.equal(elements.settingsNavUpdate.getAttribute('aria-describedby'), 'settingsUpdateAvailableIndicator')
     assert.equal(elements.settingsUpdateAvailableIndicator.hidden, false)
-    assert.equal(elements.updateBadge.hidden, false)
-    assert.equal(elements.updateBadge.getAttribute('data-update-state'), 'ready')
+    assert.equal(elements.updateMission.hidden, false)
+    assert.equal(elements.updateMission.getAttribute('data-update-state'), 'ready')
+    assert.equal(updateMissionTitle.textContent, 'Actualización lista')
+    assert.equal(updateMissionDescription.textContent, 'Puedes instalarla desde Ajustes.')
+    assert.equal(elements.updateMission.getAttribute('aria-label'), 'Actualización lista. Abrir Ajustes para instalarla.')
     assert.equal(buttonCalls.length, 1)
     assert.equal(buttonCalls[0][0], 'Instalar ahora')
     assert.equal(buttonCalls[0][1], false)
@@ -1020,11 +1038,11 @@ async function testSettingsRoutes(){
     assert.equal(buttonCalls.length, 1, 'checking-for-update does not disable the ready install CTA')
     update.handleAutoUpdateNotification('update-not-available')
     assert.equal(buttonCalls.length, 1, 'update-not-available does not replace the ready install CTA')
-    assert.equal(elements.updateBadge.hidden, false, 'update-not-available preserves a downloaded update')
-    assert.equal(elements.updateBadge.getAttribute('data-update-state'), 'ready', 'ready CTA remains available after update-not-available')
+    assert.equal(elements.updateMission.hidden, false, 'update-not-available preserves a downloaded update')
+    assert.equal(elements.updateMission.getAttribute('data-update-state'), 'ready', 'ready CTA remains available after update-not-available')
 
     update.handleAutoUpdateNotification('realerror', { code: 'ERR_GENERIC' })
-    assert.equal(elements.updateBadge.getAttribute('data-update-state'), 'ready', 'realerror preserves the ready update state')
+    assert.equal(elements.updateMission.getAttribute('data-update-state'), 'ready', 'realerror preserves the ready update state')
     assert.equal(buttonCalls.length, 1, 'realerror after checking keeps the install CTA available')
     assert.equal(updaterLogs.some(log => log[0] === 'error' && log[1] === 'Error during update check..'), true, 'realerror keeps unexpected-error logging')
 
@@ -1034,7 +1052,9 @@ async function testSettingsRoutes(){
     update.handleAutoUpdateNotification('checking-for-update')
     assert.deepEqual(buttonCalls, [['Comprobando...', true]], 'checking from normal disables the checking CTA')
     update.handleAutoUpdateNotification('realerror', { code: 'ERR_GENERIC' })
-    assert.equal(elements.updateBadge.hidden, true, 'realerror from normal clears the badge')
+    assert.equal(elements.updateMission.hidden, true, 'realerror from normal hides the mission card')
+    assert.equal(elements.updateMission.hasAttribute('data-update-state'), false)
+    assert.equal(elements.updateMission.hasAttribute('aria-label'), false)
     assert.equal(buttonCalls[1][0], 'Buscar actualizaciones')
     assert.equal(buttonCalls[1][1], false, 'realerror from normal restores an enabled retry CTA')
     buttonCalls[1][2]()
@@ -1046,20 +1066,26 @@ async function testSettingsRoutes(){
     assert.equal(typeof buttonCalls[3][2], 'function')
 
     update.handleAutoUpdateNotification('update-available', { version: '2.1.0', releaseName: 'New release', releaseNotes: 'Notes' })
-    assert.equal(elements.updateBadge.getAttribute('data-update-state'), 'downloading', 'a new update can replace ready')
+    assert.equal(elements.updateMission.getAttribute('data-update-state'), 'downloading', 'a new update can replace ready')
+    assert.equal(updateMissionTitle.textContent, 'Descargando actualización')
+    assert.equal(updateMissionDescription.textContent, 'La nueva versión se está preparando.')
     assert.equal(updateInfoCalls[0].version, '2.1.0')
     assert.deepEqual(buttonCalls[4], ['Descargando...', true], 'a valid update may replace the retry CTA')
     update.handleAutoUpdateNotification('realerror', { code: 'ERR_GENERIC' })
-    assert.equal(elements.updateBadge.hidden, true, 'realerror clears a transient update badge')
-    assert.equal(elements.updateBadge.hasAttribute('data-update-state'), false)
+    assert.equal(elements.updateMission.hidden, true, 'realerror clears a transient update mission')
+    assert.equal(elements.updateMission.hasAttribute('data-update-state'), false)
     assert.equal(buttonCalls[5][0], 'Buscar actualizaciones')
     assert.equal(buttonCalls[5][1], false, 'realerror from downloading restores an enabled retry CTA')
     assert.equal(typeof buttonCalls[5][2], 'function', 'retry CTA has a handler')
     assert.deepEqual(calls, [], 'updater marks the existing Settings action without synthetic navigation')
     assert.match(settingsMarkup, /id="settingsUpdateAvailableIndicator"[^>]*role="status"[^>]*aria-live="polite"[^>]*hidden/)
-    assert.match(landingMarkup, /data-sa-update-badge[^>]*data-sa-open="settings"[^>]*data-sa-settings-tab="settingsNavUpdate"/)
-    assert.match(landingMarkup, /aria-label="<%- lang\('landing\.updateAvailableTooltip'\) %>"/)
-    assert.match(landingMarkup, /data-sa-update-label><%- lang\('landing\.updateAvailableTooltip'\) %><\/span>/)
+    assert.match(landingMarkup, /data-sa-update-mission[^>]*data-sa-open="settings"[^>]*data-sa-settings-tab="settingsNavUpdate"/)
+    const missionMarkupStart = landingMarkup.indexOf('data-sa-update-mission')
+    assert.ok(landingMarkup.indexOf('class="sa-server-meta"') < missionMarkupStart, 'mission card follows server metadata')
+    assert.ok(missionMarkupStart < landingMarkup.indexOf('class="sa-change-server"'), 'mission card precedes server selection')
+    assert.match(landingMarkup, /data-sa-update-title>Misión disponible<\/strong>/)
+    assert.match(landingMarkup, /data-sa-update-description>Hay una actualización para revisar\.<\/small>/)
+    assert.doesNotMatch(landingMarkup, /data-sa-update-badge|sa-update-badge/)
     assert.match(squadArcadeSource, /openSettings\(settingsTab, settingsTab != null\)/)
     assert.doesNotMatch(landingMarkup, /ACTUALIZACIONES|aria-label="Actualizaciones del launcher"/)
     assert.doesNotMatch(landingMarkup, /image_seal_container/)
@@ -1130,14 +1156,17 @@ function testVisualAssetContract(){
     assert.ok(selectorLines.length > 0)
     assert.match(landingStyles, /sa-brand\[data-update-state\].*img/)
     assert.match(landingStyles, /prefers-reduced-motion/)
-    assert.match(landingStyles, /sa-update-badge\[data-update-state='downloading'\]/)
+    assert.match(landingStyles, /sa-update-mission\[data-update-state='downloading'\]/)
+    assert.match(landingStyles, /sa-update-mission\[data-update-state='ready'\]/)
+    assert.match(landingStyles, /sa-update-mission\[hidden\][^}]*display:\s*none\s*!important/)
+    for(const theme of ['overworld', 'creeper', 'nether', 'ender']){
+        assert.match(landingStyles, new RegExp(`data-theme=['"]${theme}['"][^}]*sa-mission-line`), `${theme} theme defines mission colors`)
+    }
     const compactHomeStyles = landingStyles.slice(landingStyles.indexOf('@media (max-width: 570px)'))
-    assert.match(landingStyles, /sa-marquee nav \.sa-update-badge/, 'badge has its own navigation layout')
-    assert.doesNotMatch(landingStyles, /\.sa-update-badge\s*\{[^}]*position:\s*absolute/, 'badge is not positioned over the brand')
-    assert.match(compactHomeStyles, /sa-update-badge[^}]*flex:\s*1 1 106px/, 'compact badge keeps its own flexible navigation space')
-    assert.match(compactHomeStyles, /sa-update-badge[^}]*border-width:\s*2px/, 'compact badge accounts for its border')
-    assert.match(compactHomeStyles, /sa-update-badge[^}]*white-space:\s*normal/, 'long compact badge labels remain readable')
-    assert.match(compactHomeStyles, /sa-marquee nav button[^}]*min-width:\s*0[^}]*flex:\s*1 1 0/, 'compact navigation can shrink without overlapping the badge')
+    assert.doesNotMatch(landingStyles, /sa-update-badge/, 'legacy badge selectors are retired')
+    assert.match(compactHomeStyles, /sa-update-mission[^}]*border-width:\s*2px/, 'compact mission card accounts for its border')
+    assert.match(compactHomeStyles, /sa-update-mission-copy small[^}]*font-size:\s*6px/, 'compact mission description remains readable')
+    assert.match(compactHomeStyles, /sa-marquee nav button[^}]*min-width:\s*0[^}]*flex:\s*1 1 0/, 'compact navigation can shrink without overlapping the mission card')
     assert.equal(selectorLines.every(line => line.startsWith('#settingsContainer.is-squad-settings-ready')), true, 'all Settings selectors are ready-namespaced')
     assert.match(settingsStyles, /pointer-events:\s*none/, 'decorative layers cannot block clicks')
     assert.doesNotMatch(settingsStyles, /@keyframes|animation\s*:/, 'WU2 does not add motion')

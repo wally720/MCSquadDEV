@@ -26,30 +26,6 @@ function isNewerUpdate(info) {
         && semver.gt(availableVersion, currentVersion)
 }
 
-function logUpdaterDiagnostic(eventName, info = null, accepted = null) {
-    const record = {
-        timestamp: new Date().toISOString(),
-        event: eventName,
-        appVersion: app.getVersion(),
-        updateVersion: info?.version || null,
-        isDev,
-        accepted,
-        error: info?.code || info?.message ? {
-            code: info.code || null,
-            message: info.message || null,
-            stack: info.stack || null
-        } : null
-    }
-    const line = `[updater] ${JSON.stringify(record)}\n`
-
-    console.log(line.trim())
-    try {
-        fs.appendFileSync(path.join(app.getPath('userData'), 'updater-debug.log'), line)
-    } catch(error) {
-        console.error('[updater] Could not write diagnostic log.', error)
-    }
-}
-
 function initAutoUpdater(event, data) {
 
     if(data){
@@ -68,7 +44,6 @@ function initAutoUpdater(event, data) {
     }
     autoUpdater.on('update-available', (info) => {
         const accepted = isNewerUpdate(info)
-        logUpdaterDiagnostic('update-available', info, accepted)
         if(!accepted){
             event.sender.send('autoUpdateNotification', 'update-not-available', info)
             return
@@ -77,7 +52,6 @@ function initAutoUpdater(event, data) {
     })
     autoUpdater.on('update-downloaded', (info) => {
         const accepted = isNewerUpdate(info)
-        logUpdaterDiagnostic('update-downloaded', info, accepted)
         if(!accepted){
             event.sender.send('autoUpdateNotification', 'update-not-available', info)
             return
@@ -85,15 +59,12 @@ function initAutoUpdater(event, data) {
         event.sender.send('autoUpdateNotification', 'update-downloaded', info)
     })
     autoUpdater.on('update-not-available', (info) => {
-        logUpdaterDiagnostic('update-not-available', info, false)
         event.sender.send('autoUpdateNotification', 'update-not-available', info)
     })
     autoUpdater.on('checking-for-update', () => {
-        logUpdaterDiagnostic('checking-for-update')
         event.sender.send('autoUpdateNotification', 'checking-for-update')
     })
     autoUpdater.on('error', (err) => {
-        logUpdaterDiagnostic('error', err, false)
         event.sender.send('autoUpdateNotification', 'realerror', err)
     }) 
 }

@@ -13,10 +13,6 @@
                 <button type="button" class="is-active" aria-current="page">INICIO</button>
                 <button type="button" data-sa-open="mods">MODS</button>
                 <button type="button" data-sa-open="settings">AJUSTES</button>
-                <button class="sa-update-badge" type="button" data-sa-update-badge data-sa-open="settings" data-sa-settings-tab="settingsNavUpdate" hidden aria-live="polite" aria-label="<%- lang('landing.updateAvailableTooltip') %>">
-                    <span class="sa-update-signal" aria-hidden="true"></span>
-                    <span data-sa-update-label><%- lang('landing.updateAvailableTooltip') %></span>
-                </button>
             </nav>
             <button class="sa-theme-trigger" type="button" data-sa-theme-trigger aria-haspopup="dialog">TEMA</button>
         </header>
@@ -39,6 +35,14 @@
                     <span>ESTADO <b data-sa-status>COMPROBANDO</b></span>
                     <span>JUGADORES <b data-sa-players>--</b></span>
                 </div>
+                <button class="sa-update-mission" type="button" data-sa-update-mission data-sa-open="settings" data-sa-settings-tab="settingsNavUpdate" hidden aria-live="polite" aria-label="Misión disponible">
+                    <span class="sa-update-mission-icon" aria-hidden="true">◆</span>
+                    <span class="sa-update-mission-copy">
+                        <strong data-sa-update-title>Misión disponible</strong>
+                        <small data-sa-update-description>Hay una actualización para revisar.</small>
+                    </span>
+                    <span class="sa-update-mission-action" aria-hidden="true">VER</span>
+                </button>
                 <button class="sa-change-server" type="button" data-sa-select-server>CAMBIAR SERVIDOR <span aria-hidden="true">&#8596;</span></button>
             </article>
 

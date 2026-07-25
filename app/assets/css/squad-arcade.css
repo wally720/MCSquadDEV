@@ -1,4 +1,5 @@
-.squad-arcade {
+.squad-arcade,
+.squad-arcade[data-theme='overworld'] {
     --sa-bg: #102643;
     --sa-surface: #fff6d8;
     --sa-panel: #173e68;
@@ -9,6 +10,9 @@
     --sa-ink: #102744;
     --sa-light: #f8fdff;
     --sa-download-bg: #061522;
+    --sa-mission-line: #57e878;
+    --sa-mission-ink: #baffc9;
+    --sa-mission-panel: rgba(4, 22, 12, 0.94);
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -29,6 +33,9 @@
     --sa-ink: #07140c;
     --sa-light: #f5ffe9;
     --sa-download-bg: #030b06;
+    --sa-mission-line: #a7f22d;
+    --sa-mission-ink: #e5ffc1;
+    --sa-mission-panel: rgba(4, 28, 13, 0.94);
 }
 
 .squad-arcade[data-theme='nether'] {
@@ -42,6 +49,9 @@
     --sa-ink: #230806;
     --sa-light: #fff2df;
     --sa-download-bg: #160403;
+    --sa-mission-line: #ffad21;
+    --sa-mission-ink: #ffe1a0;
+    --sa-mission-panel: rgba(35, 23, 5, 0.95);
 }
 
 .squad-arcade[data-theme='ender'] {
@@ -55,6 +65,9 @@
     --sa-ink: #180a28;
     --sa-light: #fff4ff;
     --sa-download-bg: #0b0614;
+    --sa-mission-line: #6effad;
+    --sa-mission-ink: #d0ffe5;
+    --sa-mission-panel: rgba(8, 25, 22, 0.95);
 }
 
 .squad-arcade::before {
@@ -165,70 +178,6 @@
         filter: drop-shadow(0 0 3px rgba(var(--sa-update-pulse-rgb), 0.3));
         transform: scale(1.02);
     }
-}
-
-.squad-arcade .sa-marquee nav .sa-update-badge {
-    display: inline-flex;
-    flex: 0 1 auto;
-    align-items: center;
-    gap: 5px;
-    box-sizing: border-box;
-    width: max-content;
-    min-width: 0;
-    max-width: none;
-    padding: 4px 7px;
-    overflow: visible;
-    border: 2px solid #57e878;
-    color: #baffc9;
-    background: rgba(4, 22, 12, 0.94);
-    font-size: 7px;
-    font-weight: 800;
-    letter-spacing: .07em;
-    line-height: 1;
-    text-overflow: clip;
-    text-transform: uppercase;
-    transform: rotate(2deg);
-    white-space: nowrap;
-}
-
-.squad-arcade .sa-marquee nav .sa-update-badge[hidden] {
-    display: none !important;
-}
-
-.squad-arcade .sa-update-badge[data-update-state='downloading'] {
-    --sa-update-pulse-rgb: 243, 182, 75;
-    border-color: #f3b64b;
-    color: #ffe1a0;
-    background: rgba(35, 23, 5, 0.95);
-}
-
-.squad-arcade .sa-update-badge[data-update-state='available'],
-.squad-arcade .sa-update-badge[data-update-state='ready'] {
-    --sa-update-pulse-rgb: 87, 232, 120;
-}
-
-.squad-arcade .sa-update-badge[data-update-state] {
-    animation: sa-update-badge-pulse 2.2s ease-in-out infinite;
-    box-shadow: 0 0 0 4px rgba(var(--sa-update-pulse-rgb), 0.16), 0 0 15px rgba(var(--sa-update-pulse-rgb), 0.34);
-    will-change: box-shadow;
-}
-
-@keyframes sa-update-badge-pulse {
-    0%, 100% {
-        box-shadow: 0 0 0 0 rgba(var(--sa-update-pulse-rgb), 0), 0 0 0 rgba(var(--sa-update-pulse-rgb), 0);
-    }
-    50% {
-        box-shadow: 0 0 0 5px rgba(var(--sa-update-pulse-rgb), 0.14), 0 0 17px rgba(var(--sa-update-pulse-rgb), 0.34);
-    }
-}
-
-.squad-arcade .sa-update-signal {
-    flex: 0 0 6px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 8px currentColor;
 }
 
 .squad-arcade .sa-brand span {
@@ -455,6 +404,113 @@
     font-size: 10px;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.squad-arcade .sa-update-mission {
+    --sa-update-mission-state: var(--sa-mission-line);
+    position: relative;
+    width: 100%;
+    min-height: 54px;
+    display: grid;
+    grid-template-columns: 35px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    margin-top: 9px;
+    padding: 7px 10px;
+    border: 3px solid var(--sa-update-mission-state);
+    color: var(--sa-mission-ink);
+    background: linear-gradient(125deg, var(--sa-mission-panel), color-mix(in srgb, var(--sa-panel) 78%, var(--sa-mission-panel)));
+    box-shadow: 4px 4px var(--sa-ink), inset 0 -3px color-mix(in srgb, var(--sa-update-mission-state) 35%, transparent);
+    text-align: left;
+    animation: sa-update-mission-pulse 2.4s ease-in-out infinite;
+    will-change: box-shadow;
+}
+
+.squad-arcade .sa-update-mission[hidden] {
+    display: none !important;
+}
+
+.squad-arcade .sa-update-mission[data-update-state='available'] {
+    --sa-update-mission-state: var(--sa-mission-line);
+}
+
+.squad-arcade .sa-update-mission[data-update-state='downloading'] {
+    --sa-update-mission-state: var(--sa-accent);
+}
+
+.squad-arcade .sa-update-mission[data-update-state='ready'] {
+    --sa-update-mission-state: var(--sa-accent);
+}
+
+.squad-arcade .sa-update-mission:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.12) saturate(1.08);
+    box-shadow: 6px 6px var(--sa-ink), 0 0 15px color-mix(in srgb, var(--sa-update-mission-state) 46%, transparent), inset 0 -3px color-mix(in srgb, var(--sa-update-mission-state) 35%, transparent);
+}
+
+.squad-arcade .sa-update-mission:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px var(--sa-ink), inset 0 -2px color-mix(in srgb, var(--sa-update-mission-state) 35%, transparent);
+}
+
+.squad-arcade .sa-update-mission-icon {
+    width: 27px;
+    height: 27px;
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--sa-update-mission-state);
+    color: var(--sa-update-mission-state);
+    font-size: 13px;
+    transform: rotate(45deg);
+}
+
+.squad-arcade .sa-update-mission-copy {
+    min-width: 0;
+}
+
+.squad-arcade .sa-update-mission-copy strong,
+.squad-arcade .sa-update-mission-copy small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.squad-arcade .sa-update-mission-copy strong {
+    color: var(--sa-update-mission-state);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .07em;
+    line-height: 1.1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.squad-arcade .sa-update-mission-copy small {
+    margin-top: 3px;
+    color: var(--sa-light);
+    font-family: 'Avenir Book', sans-serif;
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.squad-arcade .sa-update-mission-action {
+    padding: 5px 6px;
+    border-left: 2px solid color-mix(in srgb, var(--sa-update-mission-state) 66%, transparent);
+    color: var(--sa-update-mission-state);
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+
+@keyframes sa-update-mission-pulse {
+    0%, 100% {
+        box-shadow: 4px 4px var(--sa-ink), 0 0 0 color-mix(in srgb, var(--sa-update-mission-state) 0%, transparent), inset 0 -3px color-mix(in srgb, var(--sa-update-mission-state) 35%, transparent);
+    }
+    50% {
+        box-shadow: 4px 4px var(--sa-ink), 0 0 17px color-mix(in srgb, var(--sa-update-mission-state) 34%, transparent), inset 0 -3px color-mix(in srgb, var(--sa-update-mission-state) 35%, transparent);
+    }
 }
 
 .squad-arcade .sa-change-server {
@@ -1097,17 +1153,6 @@
         height: 31px;
     }
 
-    .squad-arcade .sa-marquee nav .sa-update-badge {
-        flex: 1 1 150px;
-        width: auto;
-        white-space: normal;
-        font-size: 6px;
-    }
-
-    .squad-arcade .sa-marquee nav .sa-update-badge [data-sa-update-label] {
-        white-space: normal;
-    }
-
     .squad-arcade .sa-brand span {
         font-size: 16px;
     }
@@ -1159,6 +1204,28 @@
         margin-top: 6px;
     }
 
+    .squad-arcade .sa-update-mission {
+        grid-template-columns: 30px minmax(0, 1fr) auto;
+        gap: 7px;
+        min-height: 45px;
+        margin-top: 6px;
+        padding: 5px 7px;
+    }
+
+    .squad-arcade .sa-update-mission-icon {
+        width: 23px;
+        height: 23px;
+        font-size: 11px;
+    }
+
+    .squad-arcade .sa-update-mission-copy strong {
+        font-size: 8px;
+    }
+
+    .squad-arcade .sa-update-mission-copy small {
+        font-size: 7px;
+    }
+
     .squad-arcade .sa-server-meta span {
         min-height: 28px;
         padding: 3px 5px;
@@ -1202,7 +1269,7 @@
         animation: none;
     }
 
-    .squad-arcade .sa-update-badge[data-update-state] {
+    .squad-arcade .sa-update-mission[data-update-state] {
         animation: none;
     }
 }
@@ -1222,27 +1289,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-    }
-
-    .squad-arcade .sa-marquee nav .sa-update-badge {
-        flex: 1 1 106px;
-        width: auto;
-        min-width: 0;
-        max-width: none;
-        padding: 3px 5px;
-        border-width: 2px;
-        gap: 3px;
-        font-size: 5px;
-        line-height: 1.1;
-        overflow: visible;
-        text-overflow: clip;
-        white-space: normal;
-    }
-
-    .squad-arcade .sa-marquee nav .sa-update-badge [data-sa-update-label] {
-        overflow: visible;
-        text-overflow: clip;
-        white-space: normal;
     }
 
     .squad-arcade .sa-marquee nav {
@@ -1275,6 +1321,34 @@
 
     .squad-arcade .sa-server-meta span:nth-child(-n + 2) {
         display: none;
+    }
+
+    .squad-arcade .sa-update-mission {
+        grid-template-columns: 26px minmax(0, 1fr) auto;
+        gap: 5px;
+        min-height: 42px;
+        padding: 4px 5px;
+        border-width: 2px;
+    }
+
+    .squad-arcade .sa-update-mission-icon {
+        width: 20px;
+        height: 20px;
+        font-size: 9px;
+    }
+
+    .squad-arcade .sa-update-mission-copy strong {
+        font-size: 7px;
+    }
+
+    .squad-arcade .sa-update-mission-copy small {
+        margin-top: 2px;
+        font-size: 6px;
+    }
+
+    .squad-arcade .sa-update-mission-action {
+        padding-inline: 4px;
+        font-size: 6px;
     }
 
     .squad-arcade .sa-actions {

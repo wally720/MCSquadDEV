@@ -114,6 +114,28 @@ function changeAllowPrerelease(val){
 }
 
 function renderUpdateUI(){
+    const missionCopy = {
+        available: {
+            title: 'Misión disponible',
+            description: 'Hay una actualización para revisar.',
+            ariaLabel: 'Misión disponible. Abrir Ajustes para revisar la actualización.'
+        },
+        downloading: {
+            title: 'Descargando actualización',
+            description: 'La nueva versión se está preparando.',
+            ariaLabel: 'Descargando actualización. Abrir Ajustes para ver el progreso.'
+        },
+        ready: {
+            title: 'Actualización lista',
+            description: 'Puedes instalarla desde Ajustes.',
+            ariaLabel: 'Actualización lista. Abrir Ajustes para instalarla.'
+        },
+        normal: {
+            title: 'Misión disponible',
+            description: 'No hay actualizaciones pendientes.',
+            ariaLabel: ''
+        }
+    }
     const labelKeys = {
         available: 'uicore.autoUpdate.availableStatus',
         downloading: 'uicore.autoUpdate.downloadingStatus',
@@ -123,8 +145,9 @@ function renderUpdateUI(){
     const active = label != null
     const updateNav = document.getElementById('settingsNavUpdate')
     const updateIndicator = document.getElementById('settingsUpdateAvailableIndicator')
-    const updateBadge = document.querySelector('[data-sa-update-badge]')
+    const updateMission = document.querySelector('[data-sa-update-mission]')
     const updateBrand = document.querySelector('.sa-brand')
+    const currentMissionCopy = missionCopy[updateUIState] || missionCopy.normal
 
     if(updateNav != null){
         if(active){
@@ -151,18 +174,22 @@ function renderUpdateUI(){
             updateIndicator.removeAttribute('data-update-state')
         }
     }
-    if(updateBadge != null){
-        updateBadge.hidden = !active
+    if(updateMission != null){
+        updateMission.hidden = !active
+        const missionTitle = updateMission.querySelector('[data-sa-update-title]')
+        const missionDescription = updateMission.querySelector('[data-sa-update-description]')
+        if(missionTitle != null){
+            missionTitle.textContent = currentMissionCopy.title
+        }
+        if(missionDescription != null){
+            missionDescription.textContent = currentMissionCopy.description
+        }
         if(active){
-            updateBadge.setAttribute('aria-label', label)
-            updateBadge.setAttribute('data-update-state', updateUIState)
-            const badgeLabel = updateBadge.querySelector('[data-sa-update-label]')
-            if(badgeLabel != null){
-                badgeLabel.textContent = label
-            }
+            updateMission.setAttribute('aria-label', currentMissionCopy.ariaLabel)
+            updateMission.setAttribute('data-update-state', updateUIState)
         } else {
-            updateBadge.removeAttribute('aria-label')
-            updateBadge.removeAttribute('data-update-state')
+            updateMission.removeAttribute('aria-label')
+            updateMission.removeAttribute('data-update-state')
         }
     }
     if(updateBrand != null){
