@@ -7,6 +7,7 @@ const projectRoot = path.join(__dirname, '..')
 const settingsSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'settings.js'), 'utf8')
 const configManagerSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'configmanager.js'), 'utf8')
 const authManagerSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'authmanager.js'), 'utf8')
+const serverStatusSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'serverstatus.js'), 'utf8')
 const settingsMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'settings.ejs'), 'utf8')
 const loginOptionsMarkup = fs.readFileSync(path.join(projectRoot, 'app', 'loginOptions.ejs'), 'utf8')
 const loginOptionsSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'loginOptions.js'), 'utf8')
@@ -262,6 +263,151 @@ function loadProcessBuilder(){
         }
     }, { filename: 'processbuilder.js' })
     return processBuilderModule.exports
+}
+
+function loadServerStatusClient({ srvRecords = [], srvError = null, dnsPending = false } = {}){
+    const calls = []
+    const dnsCalls = []
+    const sockets = []
+    const timers = new Map()
+    let timerId = 0
+    let resolveDns
+    const pendingDns = dnsPending ? new Promise(resolve => { resolveDns = resolve }) : null
+
+    const createSocket = (port, hostname, connected) => {
+        const listeners = new Map()
+        const socket = {
+            id: sockets.length,
+            destroyed: false,
+            listeners,
+            writes: [],
+            write(data){
+                const packet = Buffer.from(data)
+                this.writes.push(packet)
+                calls.push(['write', this.id, packet])
+            },
+            on: (event, listener) => listeners.set(event, listener),
+            once: (event, listener) => listeners.set(event, listener),
+            destroy(){
+                if(!this.destroyed){
+                    this.destroyed = true
+                    calls.push(['destroy', this.id])
+                }
+            }
+        }
+        sockets.push(socket)
+        calls.push(['connect', socket.id, hostname, port])
+        queueMicrotask(() => {
+            if(!socket.destroyed) connected()
+        })
+        return socket
+    }
+
+    const serverStatusModule = { exports: {} }
+    vm.runInNewContext(serverStatusSource, {
+        Buffer,
+        console,
+        clearTimeout(id){
+            if(timers.delete(id)) calls.push(['clearDeadline', id])
+        },
+        exports: serverStatusModule.exports,
+        module: serverStatusModule,
+        require(name){
+            if(name === 'dns/promises') return {
+                async resolveSrv(query){
+                    dnsCalls.push(query)
+                    if(srvError != null) throw srvError
+                    if(pendingDns != null) return await pendingDns
+                    return srvRecords
+                }
+            }
+            if(name === 'net') return {
+                connect: createSocket
+            }
+            throw new Error(`Unexpected server status module: ${name}`)
+        },
+        setTimeout(listener, delay){
+            const id = ++timerId
+            timers.set(id, { delay, listener })
+            calls.push(['deadline', id, delay])
+            return id
+        }
+    }, { filename: 'serverstatus.js' })
+    return {
+        calls,
+        dnsCalls,
+        emit: (socketIndex, event, ...args) => sockets[socketIndex].listeners.get(event)?.(...args),
+        query: serverStatusModule.exports.getStatus,
+        resolveDns: records => resolveDns?.(records),
+        runDeadline(){
+            const timer = timers.values().next().value
+            if(timer == null) throw new Error('No pending deadline')
+            timer.listener()
+        },
+        sockets,
+        timers
+    }
+}
+
+function encodeStatusVarInt(value){
+    const bytes = []
+    let remaining = value >>> 0
+    do {
+        let current = remaining & 0x7F
+        remaining >>>= 7
+        if(remaining !== 0) current |= 0x80
+        bytes.push(current)
+    } while(remaining !== 0)
+    return Buffer.from(bytes)
+}
+
+function decodeStatusVarInt(buffer, offset = 0){
+    let value = 0
+    for(let index = 0; index < 5; index++){
+        const current = buffer[offset + index]
+        value |= (current & 0x7F) << (7 * index)
+        if((current & 0x80) === 0){
+            return { value: value >>> 0, offset: offset + index + 1 }
+        }
+    }
+    throw new Error('Invalid fixture VarInt')
+}
+
+function decodeHandshake(packet){
+    const frameLength = decodeStatusVarInt(packet)
+    const packetId = decodeStatusVarInt(packet, frameLength.offset)
+    const protocol = decodeStatusVarInt(packet, packetId.offset)
+    const hostnameLength = decodeStatusVarInt(packet, protocol.offset)
+    const hostnameEnd = hostnameLength.offset + hostnameLength.value
+    const hostname = packet.subarray(hostnameLength.offset, hostnameEnd).toString('utf8')
+    const port = packet.readUInt16BE(hostnameEnd)
+    const nextState = decodeStatusVarInt(packet, hostnameEnd + 2)
+    return { frameLength: frameLength.value, packetId: packetId.value, protocol: protocol.value, hostname, port, nextState: nextState.value }
+}
+
+function createStatusPacket(payload, { packetId = 0, payloadLengthDelta = 0, frameLengthDelta = 0 } = {}){
+    const json = Buffer.from(typeof payload === 'string' ? payload : JSON.stringify(payload), 'utf8')
+    const frame = Buffer.concat([encodeStatusVarInt(packetId), encodeStatusVarInt(json.length + payloadLengthDelta), json])
+    return Buffer.concat([encodeStatusVarInt(frame.length + frameLengthDelta), frame])
+}
+
+function createRawStatusFrame(frame){
+    return Buffer.concat([encodeStatusVarInt(frame.length), frame])
+}
+
+function createStatusPacketWithSize(payload, totalBytes){
+    let fillerLength = totalBytes
+    for(let attempt = 0; attempt < 5; attempt++){
+        const packet = createStatusPacket({
+            ...payload,
+            description: { text: 'x'.repeat(fillerLength) }
+        })
+        const difference = totalBytes - packet.length
+        if(difference === 0) return packet
+        fillerLength += difference
+        if(fillerLength < 0) break
+    }
+    throw new Error(`Could not create a ${totalBytes}-byte status fixture`)
 }
 
 function loadDropinModUtil(fsStub, electronStub = { ipcRenderer: blockedBoundary('IPC'), shell: blockedBoundary('shell') }, consoleStub = console){
@@ -2512,6 +2658,9 @@ function testRetiredMojangLoginContract(){
     assert.doesNotMatch(launcherStyles, /Login View \(login\.ejs\)|#loginContainer|#loginForm|#loginButton|\.loginField|#checkmarkContainer|\.loginCheckmark|\.circle-loader/, 'retired credential form has no shared CSS consumers')
     assert.doesNotMatch(authManagerSource, /helios-core\/mojang|MojangRestAPI|MojangErrorCode|addMojangAccount|removeMojangAccount|validateSelectedMojangAccount|auth\.mojang/, 'AuthManager has no Mojang account dependency')
     assert.doesNotMatch(configManagerSource, /addMojangAuthAccount|updateMojangAuthAccount|removeAuthAccountPersisted|getClientToken|setClientToken/, 'ConfigManager exposes no Mojang account API')
+    assert.doesNotMatch(landingSource, /helios-core\/mojang|getServerStatus/, 'Landing has no Mojang status dependency')
+    assert.match(landingSource, /serverstatuscontroller/, 'Landing uses the local Minecraft status controller')
+    assert.doesNotMatch(serverStatusSource, /helios-core|mojang|\bgot\b/i, 'server status client uses no Mojang or third-party network dependency')
     assert.doesNotMatch(settingsSource, /Mojang|mojang|acc\.type\s*===?\s*['"]microsoft['"]/, 'Settings has no Mojang branch')
     assert.doesNotMatch(`${settingsSource}\n${overlaySource}\n${squadArcadeSource}`, /account\?*\.type\s*===?\s*['"]microsoft['"]|\.filter\([^\n]*type\s*===?\s*['"]microsoft['"]/, 'account surfaces delegate Microsoft eligibility to ConfigManager')
     assert.doesNotMatch(uiBinderSource, /Mojang|mojang|selectedAcc\.type/, 'account validation has no Mojang recovery branch')
@@ -2815,6 +2964,173 @@ function testProcessBuilderMicrosoftUserType(){
     assert.equal(legacyArgs[legacyArgs.indexOf('--userType') + 1], 'msa')
 }
 
+async function testMinecraftServerStatusClient(){
+    const flush = () => new Promise(resolve => setImmediate(resolve))
+    const statusPayload = {
+        version: { name: '1.20.1' },
+        description: { text: 'MCSquad' },
+        players: { online: 3, max: 20 }
+    }
+
+    const direct = loadServerStatusClient()
+    const directRequest = direct.query('play.example.test', 25565)
+    await flush()
+    assert.deepEqual(direct.dnsCalls, ['_minecraft._tcp.play.example.test'])
+    assert.deepEqual(direct.calls.find(call => call[0] === 'connect'), ['connect', 0, 'play.example.test', 25565])
+    const directWrites = direct.sockets[0].writes
+    assert.equal(directWrites.length, 2, 'modern status sends handshake and request packets')
+    assert.notDeepEqual([...directWrites[0].subarray(0, 2)], [0xFE, 0x01], 'legacy ping bytes stay retired')
+    assert.deepEqual([...directWrites[1]], [0x01, 0x00])
+    const statusPacket = createStatusPacket(statusPayload)
+    direct.emit(0, 'data', statusPacket.subarray(0, 4))
+    direct.emit(0, 'data', statusPacket.subarray(4))
+    assert.deepEqual(JSON.parse(JSON.stringify(await directRequest)), {
+        online: true,
+        version: '1.20.1',
+        motd: 'MCSquad',
+        onlinePlayers: '3',
+        maxPlayers: '20'
+    })
+    assert.equal(direct.calls.filter(call => call[0] === 'destroy').length, 1)
+    direct.emit(0, 'close')
+    direct.emit(0, 'error', new Error('late after success'))
+    assert.equal(direct.calls.filter(call => call[0] === 'destroy').length, 1, 'success ignores late terminal events')
+    assert.equal(direct.timers.size, 0)
+    const srv = loadServerStatusClient({
+        srvRecords: [
+            { name: 'first-target.example.test', port: 25566, priority: 10, weight: 5 },
+            { name: 'second-target.example.test', port: 25570, priority: 20, weight: 0 }
+        ]
+    })
+    const srvRequest = srv.query('play.example.test', 25565)
+    await flush()
+    assert.deepEqual(srv.calls.find(call => call[0] === 'connect'), ['connect', 0, 'first-target.example.test', 25566])
+    const firstHandshake = decodeHandshake(srv.sockets[0].writes[0])
+    assert.equal(firstHandshake.hostname, 'play.example.test', 'SRV handshake announces the configured hostname')
+    assert.equal(firstHandshake.port, 25565, 'SRV handshake announces the configured port')
+    assert.deepEqual({ packetId: firstHandshake.packetId, protocol: firstHandshake.protocol, nextState: firstHandshake.nextState }, { packetId: 0, protocol: 47, nextState: 1 })
+    srv.emit(0, 'error', new Error('first SRV target failed'))
+    await flush()
+    assert.deepEqual(srv.calls.filter(call => call[0] === 'connect')[1], ['connect', 1, 'second-target.example.test', 25570])
+    const secondHandshake = decodeHandshake(srv.sockets[1].writes[0])
+    assert.equal(secondHandshake.hostname, 'play.example.test')
+    assert.equal(secondHandshake.port, 25565)
+    srv.emit(1, 'data', createStatusPacket(statusPayload))
+    await srvRequest
+    assert.deepEqual(srv.calls.filter(call => call[0] === 'destroy').map(call => call[1]), [0, 1], 'each SRV socket is cleaned once')
+    assert.equal(srv.calls.filter(call => call[0] === 'deadline').length, 1, 'SRV failover shares the original total deadline')
+
+    const dnsFallback = loadServerStatusClient({ srvError: new Error('DNS unavailable') })
+    const fallbackRequest = dnsFallback.query('fallback.example.test', 25565)
+    await flush()
+    assert.deepEqual(dnsFallback.calls.find(call => call[0] === 'connect'), ['connect', 0, 'fallback.example.test', 25565])
+    dnsFallback.emit(0, 'data', createStatusPacket(statusPayload))
+    await fallbackRequest
+
+    const hangingDns = loadServerStatusClient({ dnsPending: true })
+    const hangingDnsRequest = hangingDns.query('dns-hang.example.test', 25565)
+    hangingDns.runDeadline()
+    await assert.rejects(hangingDnsRequest, error => error.code === 'ETIMEDOUT')
+    hangingDns.resolveDns([{ name: 'late.example.test', port: 25566, priority: 0, weight: 0 }])
+    await flush()
+    assert.equal(hangingDns.calls.some(call => call[0] === 'connect'), false, 'late DNS result is ignored after the total deadline')
+
+    const slow = loadServerStatusClient()
+    const slowRequest = slow.query('slow.example.test', 25565)
+    await flush()
+    const slowPacket = createStatusPacket(statusPayload)
+    slow.emit(0, 'data', slowPacket.subarray(0, 2))
+    slow.emit(0, 'data', slowPacket.subarray(2, 4))
+    slow.runDeadline()
+    await assert.rejects(slowRequest, error => error.code === 'ETIMEDOUT')
+    slow.emit(0, 'close')
+    slow.emit(0, 'error', new Error('late error'))
+    assert.equal(slow.calls.filter(call => call[0] === 'destroy').length, 1, 'deadline cleanup and late events do not double-settle')
+    assert.deepEqual(slow.calls.filter(call => call[0] === 'deadline').map(call => call[2]), [5000], 'slow chunks do not reset the total deadline')
+
+    const failed = loadServerStatusClient()
+    const errorRequest = failed.query('error.example.test', 25565)
+    await flush()
+    const socketError = new Error('connection failed')
+    failed.emit(0, 'error', socketError)
+    await assert.rejects(errorRequest, error => error === socketError)
+    assert.equal(failed.calls.filter(call => call[0] === 'destroy').length, 1)
+
+    for(const event of ['end', 'close']){
+        const closed = loadServerStatusClient()
+        const closedRequest = closed.query(`${event}.example.test`, 25565)
+        await flush()
+        closed.emit(0, event)
+        await assert.rejects(closedRequest, error => error.code === 'ECONNRESET')
+        assert.equal(closed.calls.filter(call => call[0] === 'destroy').length, 1, `${event} cleanup occurs once`)
+    }
+
+    const validStringPort = loadServerStatusClient()
+    const validStringPortRequest = validStringPort.query('string-port.example.test', '25565')
+    await flush()
+    assert.deepEqual(validStringPort.calls.find(call => call[0] === 'connect'), ['connect', 0, 'string-port.example.test', 25565])
+    validStringPort.emit(0, 'data', createStatusPacket(statusPayload))
+    await validStringPortRequest
+
+    for(const boundaryPort of [1, 65535]){
+        const boundaryPortClient = loadServerStatusClient()
+        const boundaryPortRequest = boundaryPortClient.query(`port-${boundaryPort}.example.test`, boundaryPort)
+        await flush()
+        assert.deepEqual(boundaryPortClient.calls.find(call => call[0] === 'connect'), ['connect', 0, `port-${boundaryPort}.example.test`, boundaryPort])
+        assert.equal(decodeHandshake(boundaryPortClient.sockets[0].writes[0]).port, boundaryPort)
+        boundaryPortClient.emit(0, 'data', createStatusPacket(statusPayload))
+        await boundaryPortRequest
+    }
+
+    for(const invalidPort of [null, '', ' ', '25565junk', '25565.0', '+25565', 0, '0', -1, 1.5, 65536, '65536', NaN, Infinity]){
+        const invalidPortClient = loadServerStatusClient()
+        await assert.rejects(invalidPortClient.query('invalid-port.example.test', invalidPort), error => error?.name === 'RangeError')
+        assert.equal(invalidPortClient.calls.length, 0, `invalid port ${String(invalidPort)} fails before DNS or socket work`)
+    }
+
+    const exactLimit = loadServerStatusClient()
+    const exactLimitRequest = exactLimit.query('exact-limit.example.test', 25565)
+    await flush()
+    const exactLimitPacket = createStatusPacketWithSize(statusPayload, 1024 * 1024)
+    assert.equal(exactLimitPacket.length, 1024 * 1024)
+    exactLimit.emit(0, 'data', exactLimitPacket)
+    const exactLimitStatus = await exactLimitRequest
+    assert.deepEqual([exactLimitStatus.onlinePlayers, exactLimitStatus.maxPlayers], ['3', '20'], 'an exact 1 MiB response remains valid')
+
+    const zeroPlayers = loadServerStatusClient()
+    const zeroPlayersRequest = zeroPlayers.query('zero-players.example.test', 25565)
+    await flush()
+    zeroPlayers.emit(0, 'data', createStatusPacket({ ...statusPayload, players: { online: 0, max: 0 } }))
+    const zeroPlayersStatus = await zeroPlayersRequest
+    assert.deepEqual([zeroPlayersStatus.onlinePlayers, zeroPlayersStatus.maxPlayers], ['0', '0'], 'zero online and maximum players are valid')
+
+    const invalidPayloads = [
+        Buffer.from([0x80, 0x80, 0x80, 0x80, 0x80]),
+        createRawStatusFrame(Buffer.from([0x80, 0x80, 0x80, 0x80, 0x80])),
+        createRawStatusFrame(Buffer.from([0x00, 0x80, 0x80, 0x80, 0x80, 0x80])),
+        createStatusPacket(statusPayload, { packetId: 1 }),
+        createStatusPacket(statusPayload, { payloadLengthDelta: 1 }),
+        createStatusPacket(statusPayload, { frameLengthDelta: -1 }),
+        createStatusPacket({ description: { text: 'Missing counts' } }),
+        createStatusPacket({ players: { online: -1, max: 20 } }),
+        createStatusPacket({ players: { online: 1.5, max: 20 } }),
+        createStatusPacket({ players: { online: 0, max: -1 } }),
+        createStatusPacket({ players: { online: 0, max: 1.5 } }),
+        createStatusPacket({ players: { online: 21, max: 20 } }),
+        createStatusPacket('{"players":{"online":1e400,"max":20}}'),
+        createStatusPacket('{invalid-json'),
+        Buffer.alloc((1024 * 1024) + 1)
+    ]
+    for(const [index, payload] of invalidPayloads.entries()){
+        const invalid = loadServerStatusClient()
+        const invalidRequest = invalid.query(`invalid-${index}.example.test`, 25565)
+        await flush()
+        invalid.emit(0, 'data', payload)
+        await assert.rejects(invalidRequest, error => error.code === 'EPROTO')
+        assert.equal(invalid.calls.filter(call => call[0] === 'destroy').length, 1)
+    }
+}
+
 function testMicrosoftAccountLogoutRoute(){
     const target = createLogoutTarget('microsoft-uuid')
     const ipcCalls = []
@@ -2843,6 +3159,7 @@ async function run(){
     await scenario('opaque auth data survives routine saves while runtime filters it', testOpaqueLegacyAccountPolicy)
     await scenario('Microsoft token validation preserves valid and refresh paths', testMicrosoftValidationPaths)
     await scenario('ProcessBuilder emits msa for modern and legacy arguments', testProcessBuilderMicrosoftUserType)
+    await scenario('Minecraft status uses the local dependency-free client', testMinecraftServerStatusClient)
     await scenario('Microsoft logout remains on the IPC flow', testMicrosoftAccountLogoutRoute)
     await scenario('prepareSettings first-load order', () => testPrepareSettings(true))
     await scenario('prepareSettings refresh order', () => testPrepareSettings(false))

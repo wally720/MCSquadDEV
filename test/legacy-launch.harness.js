@@ -144,28 +144,10 @@ function testRetiredProgressMarkup(){
     assert.doesNotMatch(landingSource, /syncLegacyLaunchButton|legacy fallback/)
 }
 
-async function testServerStatusPublishesWithoutLegacyMirrors(){
-    const start = landingSource.indexOf('const refreshServerStatus =')
-    const end = landingSource.indexOf('// Server Status is refreshed', start)
-    assert.ok(start >= 0 && end > start)
-    const updates = []
-    const sandbox = vm.createContext({
-        ConfigManager: { getSelectedServer: () => 'server' },
-        DistroAPI: { getDistribution: async () => ({ getServerById: () => ({ hostname: 'fixture', port: 25565 }) }) },
-        Lang: { queryJS: key => key === 'landing.serverStatus.offline' ? 'Offline' : key },
-        getServerStatus: async () => ({ players: { online: 3, max: 20 } }),
-        loggerLanding: { info(){}, warn(){}, debug(){} },
-        window: { squadArcade: { updateStatus: (...args) => updates.push(args) } },
-        console: { log(){} }
-    })
-    vm.runInContext(`${landingSource.slice(start, end)}\nglobalThis.__refreshServerStatus = refreshServerStatus`, sandbox)
-    await sandbox.__refreshServerStatus(true)
-    assert.deepEqual(JSON.parse(JSON.stringify(updates)), [[true, '3/20']])
-
-    sandbox.getServerStatus = async () => { throw new Error('offline') }
-    await sandbox.__refreshServerStatus(true)
-    assert.deepEqual(JSON.parse(JSON.stringify(updates)), [[true, '3/20'], [false, 'Offline']])
-    assert.doesNotMatch(landingSource.slice(start, end), /document|getElementById|server_status_wrapper|landingPlayerLabel|player_count/, 'status polling has no retired DOM sink')
+async function testServerStatusControllerWiring(){
+    assert.match(landingSource, /require\('\.\/assets\/js\/serverstatuscontroller'\)/, 'Landing consumes the product status controller')
+    assert.doesNotMatch(landingSource, /require\('\.\/assets\/js\/serverstatus'\)/, 'Landing does not bypass the controller')
+    assert.doesNotMatch(landingSource, /document|getElementById|server_status_wrapper|landingPlayerLabel|player_count/, 'status polling has no retired DOM sink')
 }
 
 function createJavaScan({ discovered = null, downloadResult = Promise.resolve() } = {}){
@@ -481,7 +463,7 @@ async function run(){
         'launch-double-click-window'
     ])
     await scenario('retired legacy progress nodes have no markup, script, layout, or style consumers', testRetiredProgressMarkup)
-    await scenario('server polling publishes online and offline state without legacy mirrors', testServerStatusPublishesWithoutLegacyMirrors)
+    await scenario('server polling uses the product controller without legacy mirrors', testServerStatusControllerWiring)
     await scenario('direct Home and taskbar progress stay in parity', testProgressParity)
     await scenario('configured Java routes valid, invalid, and missing executables', testConfiguredJavaRouting)
     await scenario('Java discovery, manual cancel, and retry preserve current state machine', testJavaDiscoveryAndOverlayStateMachine)

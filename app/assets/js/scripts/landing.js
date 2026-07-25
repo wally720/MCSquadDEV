@@ -2,7 +2,7 @@
  * Script for landing.ejs
  */
 // Requirements
-const { getServerStatus }     = require('helios-core/mojang')
+const { createServerStatusController } = require('./assets/js/serverstatuscontroller')
 const {
     isDisplayableError,
     validateLocalFile
@@ -145,27 +145,13 @@ function updateSelectedServer(serv){
     window.squadArcade?.updateServer(serv)
 }
 
-const refreshServerStatus = async () => {
-    loggerLanding.info('Refreshing Server Status')
-    const serv = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
-
-    let pVal = Lang.queryJS('landing.serverStatus.offline')
-    let online = false
-
-    try {
-
-        const servStat = await getServerStatus(47, serv.hostname, serv.port)
-        console.log(servStat)
-        pVal = servStat.players.online + '/' + servStat.players.max
-        online = true
-
-    } catch (err) {
-        loggerLanding.warn('No se puede actualizar el estado del servidor, asumiendo que está desconectado.')
-        loggerLanding.debug(err)
-    }
-    window.squadArcade?.updateStatus(online, pVal)
-    
-}
+const { refreshServerStatus } = createServerStatusController({
+    getSelectedServer: () => ConfigManager.getSelectedServer(),
+    getDistribution: () => DistroAPI.getDistribution(),
+    updateStatus: (online, players) => window.squadArcade?.updateStatus(online, players),
+    getOfflineText: () => Lang.queryJS('landing.serverStatus.offline'),
+    logger: loggerLanding
+})
 
 // Server Status is refreshed in uibinder.js on distributionIndexDone.
 

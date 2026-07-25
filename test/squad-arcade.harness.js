@@ -9,6 +9,7 @@ const landingMarkup = fs.readFileSync(path.join(__dirname, '..', 'app', 'landing
 const launcherStyles = fs.readFileSync(path.join(__dirname, '..', 'app', 'assets', 'css', 'launcher.css'), 'utf8')
 const localeSource = fs.readFileSync(path.join(__dirname, '..', 'app', 'assets', 'lang', 'en_US.toml'), 'utf8')
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'legacy-characterization.json'), 'utf8'))
+const { createServerStatusController } = require('../app/assets/js/serverstatuscontroller')
 
 class FakeClassList {
     toggle(){ }
@@ -266,6 +267,169 @@ function createHarness({ animeAvailable = true, launchEntry = null, launchProgre
     }
     vm.runInNewContext(source, context, { filename: 'squad-arcade.js' })
     return { actionCalls, anime, api: context.window.squadArcade, document, documentListeners, elements, landing, motionPreference, openButtons, root, runtimeWindow: window, server, themes, timers, windowListeners }
+}
+
+function encodeStatusVarInt(value){
+    const bytes = []
+    let remaining = value >>> 0
+    do {
+        let current = remaining & 0x7F
+        remaining >>>= 7
+        if(remaining !== 0) current |= 0x80
+        bytes.push(current)
+    } while(remaining !== 0)
+    return Buffer.from(bytes)
+}
+
+function createStatusResponsePacket(payload){
+    const json = Buffer.from(typeof payload === 'string' ? payload : JSON.stringify(payload), 'utf8')
+    const frame = Buffer.concat([Buffer.from([0]), encodeStatusVarInt(json.length), json])
+    return Buffer.concat([encodeStatusVarInt(frame.length), frame])
+}
+
+function createStatusTransport(){
+    const sockets = []
+    const timers = new Map()
+    let timerId = 0
+    const boundary = {
+        clearTimeout: id => timers.delete(id),
+        connect(port, hostname, connected){
+            const listeners = new Map()
+            const socket = {
+                destroyed: false,
+                hostname,
+                listeners,
+                port,
+                writes: [],
+                destroy(){ this.destroyed = true },
+                emit(event, ...args){ listeners.get(event)?.(...args) },
+                on(event, listener){ listeners.set(event, listener) },
+                once(event, listener){ listeners.set(event, listener) },
+                write(data){ this.writes.push(Buffer.from(data)) }
+            }
+            sockets.push(socket)
+            queueMicrotask(() => {
+                if(!socket.destroyed) connected()
+            })
+            return socket
+        },
+        resolveSrv: async () => [],
+        setTimeout(listener, delay){
+            const id = ++timerId
+            timers.set(id, { delay, listener })
+            return id
+        }
+    }
+    return {
+        boundary,
+        pendingTimers: timers,
+        runDeadline(){
+            const timer = timers.values().next().value
+            assert.ok(timer, 'status deadline is pending')
+            timer.listener()
+        },
+        socketFor(hostname){
+            for(let index = sockets.length - 1; index >= 0; index--){
+                if(sockets[index].hostname === hostname) return sockets[index]
+            }
+            assert.fail(`missing status socket for ${hostname}`)
+        },
+        sockets
+    }
+}
+
+async function settleWithin(promise){
+    let timeout
+    try {
+        return await Promise.race([
+            promise,
+            new Promise((_resolve, reject) => {
+                timeout = setTimeout(() => reject(new Error('server status flow did not settle')), 1000)
+            })
+        ])
+    } finally {
+        clearTimeout(timeout)
+    }
+}
+
+async function testIntegratedServerStatusFlow(){
+    const home = createHarness({ reducedMotion: true })
+    await Promise.resolve()
+    const transport = createStatusTransport()
+    const servers = {}
+    let selectedServerId = null
+    const controller = createServerStatusController({
+        getSelectedServer: () => selectedServerId,
+        getDistribution: async () => ({ getServerById: id => servers[id] }),
+        updateStatus: (online, players) => home.api.updateStatus(online, players),
+        getOfflineText: () => 'Offline',
+        logger: { debug(){}, info(){}, warn(){} },
+        statusTransport: transport.boundary
+    })
+    const startRefresh = async (serverId, hostname, port = 25565) => {
+        selectedServerId = serverId
+        servers[serverId] = { hostname, port }
+        const promise = controller.refreshServerStatus()
+        await new Promise(resolve => setImmediate(resolve))
+        return { promise, socket: transport.socketFor(hostname) }
+    }
+    assert.match(landingSource, /require\('\.\/assets\/js\/serverstatuscontroller'\)/, 'Landing consumes the product status controller')
+
+    const online = await startRefresh('online', 'online.example.test')
+    const overlappingOnline = controller.refreshServerStatus()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(transport.sockets.length, 1, 'the same endpoint shares one product status request')
+    assert.equal(controller.getInFlightCount(), 1)
+    online.socket.emit('data', createStatusResponsePacket({ players: { online: 3, max: 20 } }))
+    await settleWithin(Promise.all([online.promise, overlappingOnline]))
+    assert.equal(home.elements['[data-sa-status]'].textContent, 'ONLINE')
+    assert.equal(home.elements['[data-sa-players]'].textContent, '3/20')
+
+    const zero = await startRefresh('zero', 'zero.example.test')
+    zero.socket.emit('data', createStatusResponsePacket({ players: { online: 0, max: 0 } }))
+    await settleWithin(zero.promise)
+    assert.equal(home.elements['[data-sa-status]'].textContent, 'ONLINE')
+    assert.equal(home.elements['[data-sa-players]'].textContent, '0/0')
+
+    const failed = await startRefresh('error', 'error.example.test')
+    failed.socket.emit('error', new Error('connection failed'))
+    await settleWithin(failed.promise)
+    assert.equal(home.elements['[data-sa-status]'].textContent, 'OFFLINE')
+    assert.equal(home.elements['[data-sa-players]'].textContent, '--')
+
+    const timedOut = await startRefresh('timeout', 'timeout.example.test')
+    transport.runDeadline()
+    await settleWithin(timedOut.promise)
+    assert.equal(home.elements['[data-sa-status]'].textContent, 'OFFLINE')
+    assert.equal(home.elements['[data-sa-players]'].textContent, '--')
+
+    const malformed = await startRefresh('malformed', 'malformed.example.test')
+    malformed.socket.emit('data', createStatusResponsePacket('{invalid-json'))
+    await settleWithin(malformed.promise)
+    assert.equal(home.elements['[data-sa-status]'].textContent, 'OFFLINE')
+    assert.equal(home.elements['[data-sa-players]'].textContent, '--')
+
+    const staleA = await startRefresh('server-a', 'server-a.example.test')
+    const freshB = await startRefresh('server-b', 'server-b.example.test')
+    freshB.socket.emit('data', createStatusResponsePacket({ players: { online: 7, max: 30 } }))
+    await settleWithin(freshB.promise)
+    staleA.socket.emit('data', createStatusResponsePacket({ players: { online: 1, max: 10 } }))
+    await settleWithin(staleA.promise)
+    assert.equal(home.elements['[data-sa-status]'].textContent, 'ONLINE')
+    assert.equal(home.elements['[data-sa-players]'].textContent, '7/30', 'a late response from a different server ID stays stale')
+
+    const staleEndpoint = await startRefresh('shared', 'shared-old.example.test', 25565)
+    const freshEndpoint = await startRefresh('shared', 'shared-new.example.test', 25566)
+    freshEndpoint.socket.emit('data', createStatusResponsePacket({ players: { online: 9, max: 40 } }))
+    await settleWithin(freshEndpoint.promise)
+    staleEndpoint.socket.emit('data', createStatusResponsePacket({ players: { online: 2, max: 10 } }))
+    await settleWithin(staleEndpoint.promise)
+    assert.equal(home.elements['[data-sa-status]'].textContent, 'ONLINE')
+    assert.equal(home.elements['[data-sa-players]'].textContent, '9/40', 'a late response for an old endpoint stays stale under the same server ID')
+
+    assert.equal(controller.getInFlightCount(), 0, 'all controller status requests leave the in-flight registry')
+    assert.equal(transport.pendingTimers.size, 0, 'all status client deadlines are cleared')
+    assert.equal(transport.sockets.every(socket => socket.destroyed), true, 'all status sockets are closed')
 }
 
 async function run(){
@@ -566,7 +730,9 @@ async function run(){
 
     assert.equal(unavailable.timers.size, 0, 'Anime fallback does not schedule attraction')
 
-    console.log('Squad Arcade harness: 26 scenarios passed')
+    await testIntegratedServerStatusFlow()
+
+    console.log('Squad Arcade harness: 27 scenarios passed')
 }
 
 run().catch(error => {
