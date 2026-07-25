@@ -166,7 +166,7 @@ function createAnimeStub({ failInit = false, failExit = false } = {}){
     }
 }
 
-function createIntroHarness({ animeAvailable = true, failInit = false, failExit = false, reducedMotion = false, selectedAccount = false, saveFails = false, audioPlayFails = false } = {}){
+function createIntroHarness({ animeAvailable = true, failInit = false, failExit = false, reducedMotion = false, selectedAccount = false, saveFails = false, audioPlayFails = false, audioHttpStatus = 200, audioFetchError = null, audioBlobPromise = null } = {}){
     const documentListeners = new Map()
     const windowListeners = new Map()
     const timers = new Map()
@@ -228,7 +228,14 @@ function createIntroHarness({ animeAvailable = true, failInit = false, failExit 
     const window = {
         async fetch(source){
             fetchCalls.push(source)
-            return { ok: true, blob: async () => ({ type: 'audio/wav' }) }
+            if(audioFetchError != null){
+                throw audioFetchError
+            }
+            return {
+                ok: audioHttpStatus >= 200 && audioHttpStatus < 300,
+                status: audioHttpStatus,
+                blob: async () => audioBlobPromise == null ? ({ type: 'audio/wav' }) : await audioBlobPromise
+            }
         },
         matchMedia(){ return motionPreference },
         addEventListener(type, listener){ windowListeners.set(type, listener) },
@@ -551,6 +558,30 @@ async function testAudioLifecycle(){
     assert.equal(blocked.audio.pauseCalls, 1, 'destroy always stops the audio element')
     assert.equal(blocked.audio.loadCalls, 1, 'destroy releases the audio element resource')
     assert.deepEqual(blocked.audioUrls.revoked, ['blob:intro-audio'], 'destroy revokes the Blob URL')
+
+    const httpFailure = createIntroHarness({ audioHttpStatus: 503 })
+    httpFailure.controller.start()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(httpFailure.audio.playCalls, 0, 'an unsuccessful HTTP response never starts playback')
+    assert.equal(httpFailure.warnings.length, 1, 'an unsuccessful HTTP response is contained and logged')
+
+    const fetchFailure = createIntroHarness({ audioFetchError: new Error('fetch unavailable') })
+    fetchFailure.controller.start()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(fetchFailure.audio.playCalls, 0, 'a rejected audio fetch never starts playback')
+    assert.equal(fetchFailure.warnings.length, 1, 'a rejected audio fetch is contained and logged')
+
+    let resolvePendingBlob
+    const pendingBlob = new Promise(resolve => { resolvePendingBlob = resolve })
+    const destroyedPending = createIntroHarness({ audioBlobPromise: pendingBlob })
+    destroyedPending.controller.start()
+    await new Promise(resolve => setImmediate(resolve))
+    destroyedPending.controller.destroy()
+    resolvePendingBlob({ type: 'audio/wav' })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(destroyedPending.audio.playCalls, 0, 'destroy while the Blob is pending suppresses playback')
+    assert.deepEqual(destroyedPending.audioUrls.created, [], 'destroy while the Blob is pending does not create a URL')
+    assert.equal(destroyedPending.warnings.length, 0, 'expected destroy cleanup does not log a fetch failure')
 }
 
 function testContinueExitLifecycle(){
