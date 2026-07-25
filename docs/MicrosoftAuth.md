@@ -2,7 +2,9 @@
 
 The MCSquad launcher authenticates Minecraft accounts through Microsoft OAuth.
 
-## Acquiring an Entra Client ID
+This project already ships with its current Microsoft Entra Client ID configured in `app/assets/js/ipcconstants.js`. The registration, configuration, and whitelisting steps below apply only when replacing that Client ID with one from a different Entra application.
+
+## Registering a replacement Entra application
 
 1. Navigate to https://portal.azure.com
 2. In the search bar, search for **Microsoft Entra ID**.
@@ -28,17 +30,17 @@ The MCSquad launcher authenticates Minecraft accounts through Microsoft OAuth.
 9. Copy **Application (client) ID**.
 
 
-## Adding the Entra Client ID to the MCSquad launcher
+## Configuring a replacement Entra Client ID
 
-In `app/assets/js/ipcconstants.js` you'll find **`AZURE_CLIENT_ID`**. Set it to your application's id.
+Only when using a replacement application, set `AZURE_CLIENT_ID` in `app/assets/js/ipcconstants.js` to that application's Client ID. The value currently committed there is the configured MCSquad project Client ID, not the Helios upstream placeholder.
 
 Note: Entra Client ID is NOT a secret value and **can** be stored in git. Reference: https://stackoverflow.com/questions/57306964/are-azure-active-directorys-tenantid-and-clientid-considered-secrets
 
-Then relaunch your app, and login. You'll be greeted with an error message, because the app isn't whitelisted yet. Microsoft needs some activity on the app before whitelisting it. __Trying to log in before requesting whitelist is mandatory.__
+After configuring a replacement Client ID, relaunch the app and attempt to log in. The new application will initially report an error because it is not whitelisted yet. Microsoft needs activity on that application before whitelisting it. __Trying to log in before requesting whitelist is mandatory.__
 
-## Requesting whitelisting from Microsoft
+## Requesting whitelisting for a replacement application
 
-1. Ensure you have completed every step of this doc page.
+1. Ensure you have completed every replacement-application step on this page.
 2. Fill [this form](https://aka.ms/mce-reviewappid) with the required information. Remember this is a new appID for approval. You can find both the Client ID and the Tenant ID on the overview page in the Azure Portal.
 3. Give Microsoft some time to review your app.
 4. Once you have received Microsoft's approval, allow up to 24 hours for the changes to apply.

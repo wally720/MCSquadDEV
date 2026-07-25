@@ -26,6 +26,7 @@ const dropinModUtilSource = fs.readFileSync(path.join(projectRoot, 'app', 'asset
 const processBuilderSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'processbuilder.js'), 'utf8')
 const settingsModsStyles = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'css', 'squad-arcade-settings-mods.css'), 'utf8')
 const settingsModsVisualSource = fs.readFileSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'squad-arcade-settings-mods.js'), 'utf8')
+const { AZURE_CLIENT_ID } = require('../app/assets/js/ipcconstants')
 const SafeDom = require('../app/assets/js/safedom')
 
 function extractFunction(source, name){
@@ -2650,6 +2651,7 @@ function testLegacyFallbackPresence(){
 }
 
 function testRetiredMojangLoginContract(){
+    assert.equal(AZURE_CLIENT_ID, 'c758efe5-f006-4e45-9d7c-ace227457a97', 'productive Microsoft module keeps the configured project Client ID')
     assert.equal(fs.existsSync(path.join(projectRoot, 'app', 'login.ejs')), false, 'retired Mojang credential form stays deleted')
     assert.equal(fs.existsSync(path.join(projectRoot, 'app', 'assets', 'js', 'scripts', 'login.js')), false, 'retired Mojang credential controller stays deleted')
     assert.doesNotMatch(appMarkup, /include\(['"]login['"]\)/, 'app shell does not include the retired credential form')

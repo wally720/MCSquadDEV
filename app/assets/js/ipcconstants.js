@@ -1,8 +1,6 @@
-// NOTE FOR THIRD-PARTY
-// REPLACE THIS CLIENT ID WITH YOUR APPLICATION ID.
-// SEE https://github.com/dscalzi/HeliosLauncher/blob/master/docs/MicrosoftAuth.md
+// Microsoft Entra Client ID configured for the MCSquad project.
+// This public identifier is intentionally committed and is not an upstream placeholder.
 exports.AZURE_CLIENT_ID = 'c758efe5-f006-4e45-9d7c-ace227457a97'
-// SEE NOTE ABOVE.
 
 
 // Opcodes
