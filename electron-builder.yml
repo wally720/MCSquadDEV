@@ -2,7 +2,7 @@ appId: 'mcsquaddev'
 productName: 'MCSquad-dev'
 artifactName: '${productName}-setup-${version}.${ext}'
 
-copyright: 'Copyright © 2018-2024 WallyenTeras'
+copyright: 'Copyright © 2018-2026 WallyenTeras'
 
 asar: true
 compression: 'maximum'
