@@ -1,6 +1,7 @@
 (() => {
     'use strict'
 
+    const remote = require('@electron/remote')
     const root = document.querySelector('[data-squad-arcade]')
     if(root == null){
         return
@@ -38,6 +39,11 @@
     const liveRegion = get('[data-sa-live]')
     const themeDialog = get('[data-sa-theme-dialog]')
     const themeTrigger = get('[data-sa-theme-trigger]')
+    const versionLabel = get('[data-sa-version]')
+
+    if(versionLabel != null){
+        versionLabel.textContent = `v${remote.app.getVersion()}`
+    }
 
     function stopAnimation(name){
         const animation = activeAnimations.get(name)

@@ -222,6 +222,15 @@
     font-weight: 800;
 }
 
+.squad-arcade .sa-brand .sa-version {
+    margin-left: 4px;
+    padding: 3px 4px;
+    color: var(--sa-ink);
+    background: transparent;
+    font-size: 8px;
+    letter-spacing: .04em;
+}
+
 .squad-arcade .sa-marquee nav {
     height: 100%;
     display: flex;

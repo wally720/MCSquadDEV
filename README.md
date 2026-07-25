@@ -18,24 +18,6 @@ npm start
 
 `npm start` launches Electron and is intended for interactive local development. Do not run it in headless verification environments.
 
-## Safe verification
-
-The deterministic harnesses run directly with Node.js and do not launch Electron, Java, installers, or real authentication flows.
-
-```console
-node test/squad-arcade.harness.js
-node test/squad-arcade-intro.harness.js
-node test/squad-arcade-settings.harness.js
-node test/legacy-launch.harness.js
-node test/legacy-overlay-startup.harness.js
-```
-
-Run the repository linter with:
-
-```console
-npm run lint
-```
-
 ## Packaging
 
 Packaging scripts are defined in `package.json`. Release distribution is handled by the repository's existing release workflow; local builds are not a substitute for that workflow.
