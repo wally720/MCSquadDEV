@@ -191,8 +191,8 @@
     white-space: nowrap;
 }
 
-.squad-arcade .sa-update-badge[hidden] {
-    display: none;
+.squad-arcade .sa-marquee nav .sa-update-badge[hidden] {
+    display: none !important;
 }
 
 .squad-arcade .sa-update-badge[data-update-state='downloading'] {
