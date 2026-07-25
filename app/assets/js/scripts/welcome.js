@@ -4,6 +4,7 @@
 (function(){
     const INTRO_DURATION = 3600
     const INTRO_TIMEOUT = 4000
+    const INTRO_AUDIO_VOLUME = 0.2
     const EXIT_DURATION = 999
     const EXIT_TIMEOUT = 1250
 
@@ -21,6 +22,10 @@
         const liveRegion = get('[data-sai-live]')
         const status = get('[data-sai-status]')
         const logo = get('[data-sai-logo]')
+        const audio = options.audio || get('[data-sai-audio]')
+        const fetchAudio = options.fetch || window.fetch.bind(window)
+        const createAudioUrl = options.createObjectURL || URL.createObjectURL
+        const revokeAudioUrl = options.revokeObjectURL || URL.revokeObjectURL
         const configManager = options.configManager || ConfigManager
         const views = options.views || VIEWS
         const switchViewHandler = options.switchView || switchView
@@ -49,6 +54,10 @@
         let logoHovered = false
         let destroyed = false
         let continueExiting = false
+        let audioActive = false
+        let audioLoadPromise = null
+        let audioBlobUrl = null
+        let audioRequest = 0
         let reducedMotion = motionPreference.matches
 
         if(anime === undefined){
@@ -65,6 +74,83 @@
                 window.clearTimeout(safetyTimeout)
                 safetyTimeout = null
             }
+        }
+
+        async function prepareAudio(){
+            if(audio == null){
+                return false
+            }
+            if(audioBlobUrl != null){
+                return true
+            }
+            if(audioLoadPromise == null){
+                const source = audio.getAttribute('data-src')
+                audioLoadPromise = fetchAudio(source)
+                    .then(response => {
+                        if(!response.ok){
+                            throw new Error(`Intro audio request failed with status ${response.status}.`)
+                        }
+                        return response.blob()
+                    })
+                    .then(blob => {
+                        if(destroyed || fatal){
+                            return false
+                        }
+                        audioBlobUrl = createAudioUrl(blob)
+                        audio.src = audioBlobUrl
+                        return true
+                    })
+                    .catch(error => {
+                        if(!destroyed && !fatal){
+                            logger.warn('Unable to load the intro audio.', error)
+                        }
+                        return false
+                    })
+            }
+            return audioLoadPromise
+        }
+
+        async function playAudio(reset = false){
+            if(audio == null || destroyed || fatal){
+                return
+            }
+            const request = ++audioRequest
+            try {
+                audio.volume = INTRO_AUDIO_VOLUME
+                if(!await prepareAudio() || request !== audioRequest || destroyed || fatal){
+                    return
+                }
+                if(reset){
+                    audio.currentTime = 0
+                }
+                audioActive = true
+                const playback = audio.play()
+                playback?.catch?.(error => {
+                    audioActive = false
+                    if(!destroyed && !fatal){
+                        logger.warn('Unable to play the intro audio.', error)
+                    }
+                })
+            } catch (error){
+                audioActive = false
+                logger.warn('Unable to play the intro audio.', error)
+            }
+        }
+
+        function stopAudio(){
+            audioRequest += 1
+            audioActive = false
+            audio?.pause()
+        }
+
+        function releaseAudio(){
+            if(audioBlobUrl == null){
+                return
+            }
+            audio.removeAttribute('src')
+            audio.load()
+            revokeAudioUrl(audioBlobUrl)
+            audioBlobUrl = null
         }
 
         function cancelTimeline(){
@@ -301,6 +387,7 @@
                 return
             }
             exitRequested = true
+            stopAudio()
             clearSafetyTimeout()
             cancelTimeline()
             persistOptOut()
@@ -326,6 +413,7 @@
             }
             exitRequested = true
             continueExiting = true
+            stopAudio()
             clearSafetyTimeout()
             persistOptOut()
             skipButton.disabled = true
@@ -435,6 +523,7 @@
             }
             try {
                 timeline = buildTimeline()
+                playAudio(true)
                 safetyTimeout = window.setTimeout(() => showFinal(), INTRO_TIMEOUT)
             } catch (error){
                 logger.warn('Unable to initialize the cinematic intro. Showing the static intro.', error)
@@ -481,11 +570,17 @@
             timeline?.pause()
             ambientAnimations.forEach(animation => animation.pause())
             hoverAnimation?.pause()
+            if(audioActive){
+                audio.pause()
+            }
         }
 
         function resumeActiveWork(){
             if(timeline != null && !finalShown && !document.hidden && windowFocused){
                 timeline.resume()
+            }
+            if(audioActive && !audio.ended && !document.hidden && windowFocused){
+                playAudio()
             }
             if(canAnimateFinal() && !document.hidden && windowFocused){
                 if(ambientAnimations.length === 0){
@@ -538,6 +633,8 @@
             cancelHover()
             cancelAnimation(exitAnimation)
             exitAnimation = null
+            stopAudio()
+            releaseAudio()
             cleanupExitEffects()
             root.removeAttribute('data-ambient')
             root.removeAttribute('data-logo-hover')

@@ -95,6 +95,47 @@ class FakeElement {
     }
 }
 
+class FakeAudio {
+    constructor({ playFails = false } = {}){
+        this.currentTime = 12
+        this.ended = false
+        this.paused = true
+        this.playCalls = 0
+        this.pauseCalls = 0
+        this.volume = 1
+        this.playFails = playFails
+        this.src = ''
+        this.loadCalls = 0
+        this.attributes = new Map([['data-src', 'assets/audio/intro-tormenta-arcade.wav']])
+    }
+
+    play(){
+        this.playCalls += 1
+        if(this.playFails){
+            return { catch: handler => handler(new Error('Autoplay blocked')) }
+        }
+        this.paused = false
+        return { catch(){} }
+    }
+
+    pause(){
+        this.pauseCalls += 1
+        this.paused = true
+    }
+
+    getAttribute(name){
+        return this.attributes.get(name) || null
+    }
+
+    removeAttribute(name){
+        this.attributes.delete(name)
+    }
+
+    load(){
+        this.loadCalls += 1
+    }
+}
+
 function createAnimeStub({ failInit = false, failExit = false } = {}){
     const calls = { timelines: [], cancelled: 0, paused: 0, resumed: 0 }
     return {
@@ -125,12 +166,14 @@ function createAnimeStub({ failInit = false, failExit = false } = {}){
     }
 }
 
-function createIntroHarness({ animeAvailable = true, failInit = false, failExit = false, reducedMotion = false, selectedAccount = false, saveFails = false } = {}){
+function createIntroHarness({ animeAvailable = true, failInit = false, failExit = false, reducedMotion = false, selectedAccount = false, saveFails = false, audioPlayFails = false } = {}){
     const documentListeners = new Map()
     const windowListeners = new Map()
     const timers = new Map()
     const switches = []
     const warnings = []
+    const audioUrls = { created: [], revoked: [] }
+    const fetchCalls = []
     const views = { welcome: 'welcome', landing: 'landing', loginOptions: 'loginOptions' }
     let timerId = 0
     let currentView = views.welcome
@@ -163,6 +206,8 @@ function createIntroHarness({ animeAvailable = true, failInit = false, failExit 
         '[data-sai-logo]'
     ]
     const elements = Object.fromEntries(selectors.map(selector => [selector, new FakeElement(document)]))
+    const audio = new FakeAudio({ playFails: audioPlayFails })
+    elements['[data-sai-audio]'] = audio
     const groups = {
         '.sai-sky': [new FakeElement(document), new FakeElement(document)],
         '.sai-storm-ring': Array.from({ length: 3 }, () => new FakeElement(document)),
@@ -181,6 +226,10 @@ function createIntroHarness({ animeAvailable = true, failInit = false, failExit 
         removeEventListener(){ this.listener = null }
     }
     const window = {
+        async fetch(source){
+            fetchCalls.push(source)
+            return { ok: true, blob: async () => ({ type: 'audio/wav' }) }
+        },
         matchMedia(){ return motionPreference },
         addEventListener(type, listener){ windowListeners.set(type, listener) },
         removeEventListener(type){ windowListeners.delete(type) },
@@ -224,17 +273,27 @@ function createIntroHarness({ animeAvailable = true, failInit = false, failExit 
             switches.push({ from, to })
             currentView = to
         },
+        URL: {
+            createObjectURL(blob){
+                audioUrls.created.push(blob)
+                return 'blob:intro-audio'
+            },
+            revokeObjectURL(url){ audioUrls.revoked.push(url) }
+        },
         window
     }
     vm.runInNewContext(introSource, context, { filename: 'welcome.js' })
     const controller = context.window.createSquadArcadeIntro()
     return {
         anime,
+        audio,
+        audioUrls,
         config,
         controller,
         document,
         documentListeners,
         elements,
+        fetchCalls,
         get loginPrepared(){ return loginPrepared },
         motionPreference,
         root,
@@ -444,6 +503,54 @@ function testFallbacksAndMotion(){
     assert.doesNotThrow(() => exitFailure.elements['[data-sai-continue]'].click())
     assert.equal(exitFailure.switches.length, 1, 'exit initialization errors still navigate')
     assert.equal(exitFailure.root.children.length, 0, 'failed exit initialization removes decorations')
+}
+
+async function testAudioLifecycle(){
+    const active = createIntroHarness()
+    active.controller.start()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(active.audio.volume, 0.2, 'intro audio is capped at 20% volume')
+    assert.equal(active.audio.currentTime, 0, 'intro audio starts from the beginning')
+    assert.equal(active.audio.playCalls, 1, 'audio starts with the cinematic timeline')
+    assert.deepEqual(active.fetchCalls, ['assets/audio/intro-tormenta-arcade.wav'], 'audio loads through fetch instead of a file media URL')
+    assert.equal(active.audio.src, 'blob:intro-audio', 'audio plays from the compatible Blob URL')
+
+    active.windowListeners.get('blur')()
+    active.windowListeners.get('focus')()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(active.audio.pauseCalls, 1, 'window blur pauses intro audio')
+    assert.equal(active.audio.playCalls, 2, 'window focus resumes intro audio without resetting it')
+
+    active.elements['[data-sai-skip]'].click()
+    assert.equal(active.audio.pauseCalls, 2, 'Skip stops intro audio')
+
+    const continued = createIntroHarness()
+    continued.controller.setRuntimeReady()
+    continued.controller.start()
+    await new Promise(resolve => setImmediate(resolve))
+    continued.anime.calls.timelines[0].parameters.onComplete()
+    continued.elements['[data-sai-continue]'].click()
+    assert.equal(continued.audio.pauseCalls, 1, 'Continue stops intro audio before the exit effect')
+
+    const fatal = createIntroHarness()
+    fatal.controller.start()
+    await new Promise(resolve => setImmediate(resolve))
+    fatal.controller.cancelForFatal()
+    assert.equal(fatal.audio.pauseCalls, 1, 'fatal startup cleanup stops intro audio')
+    assert.deepEqual(fatal.audioUrls.revoked, ['blob:intro-audio'], 'fatal startup cleanup revokes the Blob URL')
+
+    const reduced = createIntroHarness({ reducedMotion: true })
+    reduced.controller.start()
+    assert.equal(reduced.audio.playCalls, 0, 'reduced motion does not play a cinematic without a timeline')
+
+    const blocked = createIntroHarness({ audioPlayFails: true })
+    blocked.controller.start()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(blocked.warnings.length, 1, 'blocked autoplay is handled and logged')
+    blocked.controller.destroy()
+    assert.equal(blocked.audio.pauseCalls, 1, 'destroy always stops the audio element')
+    assert.equal(blocked.audio.loadCalls, 1, 'destroy releases the audio element resource')
+    assert.deepEqual(blocked.audioUrls.revoked, ['blob:intro-audio'], 'destroy revokes the Blob URL')
 }
 
 function testContinueExitLifecycle(){
@@ -694,6 +801,8 @@ function testCompositionContract(){
     assert.doesNotMatch(introMarkup, /data-sai-logo[^>]*tabindex|data-sai-logo[^>]*role="button"/, 'decorative hover does not create a false action')
     assert.match(introSource, /const INTRO_DURATION = 3600/)
     assert.match(introSource, /const INTRO_TIMEOUT = 4000/)
+    assert.match(introSource, /const INTRO_AUDIO_VOLUME = 0\.2/)
+    assert.match(introMarkup, /<audio data-sai-audio data-src="assets\/audio\/intro-tormenta-arcade\.wav"><\/audio>/, 'markup exposes the selected audio for Blob loading')
 
     const cleaned = createIntroHarness()
     cleaned.controller.start()
@@ -718,12 +827,13 @@ function testCompositionContract(){
     assert.equal(cleaned.switches.length, 0)
 }
 
-function run(){
+async function run(){
     testConfigDefault()
     testStartupSurfaceFirstPaint()
     testOptOutStartupContract()
     testPersistenceAndRoutes()
     testFallbacksAndMotion()
+    await testAudioLifecycle()
     testKeyboardAndCleanup()
     testAmbientLifecycle()
     testLogoHoverLifecycle()
@@ -731,7 +841,10 @@ function run(){
     testRuntimeCoordination()
     testSaveFailureAndFatalPriority()
     testCompositionContract()
-    console.log('Squad Arcade intro harness: 52 scenarios passed')
+    console.log('Squad Arcade intro harness: 68 scenarios passed')
 }
 
-run()
+run().catch(error => {
+    console.error(error)
+    process.exitCode = 1
+})
