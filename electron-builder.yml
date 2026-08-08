@@ -40,6 +40,8 @@ mac:
         - 'arm64'
   artifactName: '${productName}-setup-${version}-${arch}.${ext}'
   category: 'public.app-category.games'
+  extendInfo:
+    NSMicrophoneUsageDescription: 'MCSquad necesita acceso al micrófono para el chat de voz de Minecraft (Simple Voice Chat).'
 
 # Linux Configuration
 linux: 

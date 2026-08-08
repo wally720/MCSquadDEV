@@ -2,7 +2,7 @@ const remoteMain = require('@electron/remote/main')
 remoteMain.initialize()
 
 // Requirements
-const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, shell, dialog, systemPreferences } = require('electron')
 const autoUpdater                       = require('electron-updater').autoUpdater
 const ejse                              = require('ejs-electron')
 const fs                                = require('fs')
@@ -342,6 +342,36 @@ function createMenu() {
 
 }
 
+// Request microphone access on macOS so TCC has a grant to attribute to the
+// launcher's bundle before it spawns Java (Simple Voice Chat needs this).
+// Windows/Linux have no equivalent gate, so this is a no-op there.
+async function requestMicrophoneAccess() {
+    if(process.platform !== 'darwin') {
+        return
+    }
+
+    const status = systemPreferences.getMediaAccessStatus('microphone')
+    if(status === 'granted') {
+        return
+    }
+
+    const granted = await systemPreferences.askForMediaAccess('microphone')
+    if(!granted) {
+        const { response } = await dialog.showMessageBox({
+            type: 'warning',
+            buttons: ['Open System Settings', 'Later'],
+            defaultId: 0,
+            cancelId: 1,
+            title: 'Microphone Access Needed',
+            message: 'Microphone access was denied.',
+            detail: 'Voice chat (Simple Voice Chat) will not work without microphone access. You can enable it later in System Settings > Privacy & Security > Microphone.'
+        })
+        if(response === 0) {
+            shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone')
+        }
+    }
+}
+
 function getPlatformIcon(filename){
     let ext
     switch(process.platform) {
@@ -360,6 +390,7 @@ function getPlatformIcon(filename){
 
 app.on('ready', createWindow)
 app.on('ready', createMenu)
+app.on('ready', requestMicrophoneAccess)
 
 app.on('window-all-closed', () => {
     // On macOS it is common for applications and their menu bar
